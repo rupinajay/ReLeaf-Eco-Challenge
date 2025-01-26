@@ -1,0 +1,559 @@
+--- Content of eco_action.dart ---
+import 'package:flutter/material.dart';
+
+@immutable
+class EcoAction {
+  final String id;
+  final String title;
+  final String description;
+  final int points;
+  final IconData icon;
+  final String category;
+  final DateTime createdAt;
+  final bool isVerified;
+  final double carbonOffset;
+  final List<String> requiredProof;
+  final Map<String, dynamic> additionalData;
+  final Color? color;
+  final String? imageUrl;
+  final int difficulty;
+
+  EcoAction({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.points,
+    required this.icon,
+    this.category = 'General',
+    DateTime? createdAt,
+    this.isVerified = false,
+    this.carbonOffset = 0.0,
+    this.requiredProof = const [],
+    this.additionalData = const {},
+    this.color,
+    this.imageUrl,
+    this.difficulty = 1,
+  }) : createdAt = createdAt ?? DateTime.now();
+
+  EcoAction copyWith({
+    String? id,
+    String? title,
+    String? description,
+    int? points,
+    IconData? icon,
+    String? category,
+    DateTime? createdAt,
+    bool? isVerified,
+    double? carbonOffset,
+    List<String>? requiredProof,
+    Map<String, dynamic>? additionalData,
+    Color? color,
+    String? imageUrl,
+    int? difficulty,
+  }) {
+    return EcoAction(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      points: points ?? this.points,
+      icon: icon ?? this.icon,
+      category: category ?? this.category,
+      createdAt: createdAt ?? this.createdAt,
+      isVerified: isVerified ?? this.isVerified,
+      carbonOffset: carbonOffset ?? this.carbonOffset,
+      requiredProof: requiredProof ?? this.requiredProof,
+      additionalData: additionalData ?? this.additionalData,
+      color: color ?? this.color,
+      imageUrl: imageUrl ?? this.imageUrl,
+      difficulty: difficulty ?? this.difficulty,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'title': title,
+    'description': description,
+    'points': points,
+    'iconCodePoint': icon.codePoint,
+    'category': category,
+    'createdAt': createdAt.toIso8601String(),
+    'isVerified': isVerified,
+    'carbonOffset': carbonOffset,
+    'requiredProof': requiredProof,
+    'additionalData': additionalData,
+    'difficulty': difficulty,
+  };
+
+  factory EcoAction.fromJson(Map<String, dynamic> json) => EcoAction(
+    id: json['id'],
+    title: json['title'],
+    description: json['description'],
+    points: json['points'],
+    icon: IconData(json['iconCodePoint'], fontFamily: 'MaterialIcons'),
+    category: json['category'],
+    createdAt: DateTime.parse(json['createdAt']),
+    isVerified: json['isVerified'],
+    carbonOffset: json['carbonOffset'],
+    requiredProof: List<String>.from(json['requiredProof']),
+    additionalData: json['additionalData'],
+    difficulty: json['difficulty'],
+  );
+}
+
+--- Content of post.dart ---
+// lib/models/post.dart
+class Post {
+  final String id;
+  final String userId;
+  final String userName;
+  final String userAvatar;
+  final String imageUrl;
+  final String description;
+  final String actionType;
+  final int points;
+  final int likes;
+  final int comments;
+  final DateTime createdAt;
+  final bool isLiked;
+
+  Post({
+    required this.id,
+    required this.userId,
+    required this.userName,
+    required this.userAvatar,
+    required this.imageUrl,
+    required this.description,
+    required this.actionType,
+    required this.points,
+    required this.likes,
+    required this.comments,
+    required this.createdAt,
+    this.isLiked = false,
+  });
+
+  factory Post.fromJson(Map<String, dynamic> json) {
+    final profile = json['profiles'] as Map<String, dynamic>;
+    return Post(
+      id: json['id'],
+      userId: json['user_id'],
+      userName: profile['name'] ?? 'Unknown',
+      userAvatar: profile['avatar_url'] ?? '',
+      imageUrl: json['image_url'],
+      description: json['description'],
+      actionType: json['action_type'],
+      points: json['points'],
+      likes: json['likes'],
+      comments: json['comments'],
+      createdAt: DateTime.parse(json['created_at']),
+      isLiked: json['is_liked'] ?? false,
+    );
+  }
+}
+
+--- Content of user.dart ---
+// lib/models/user.dart
+import 'package:flutter/material.dart';
+
+@immutable
+class User {
+  final String id;
+  final String name;
+  final String email;
+  final int points;
+  final String avatar;
+  final UserLevel level;
+  final List<String> achievements;
+  final Map<String, int> stats;
+  final UserPreferences preferences;
+  final DateTime joinDate;
+  final List<String> completedActions;
+  final List<String> redeemedRewards;
+  final double totalCarbonOffset;
+  final String? referralCode;
+  final List<String> friends;
+
+  const User({
+    required this.id,
+    required this.name,
+    required this.email,
+    required this.points,
+    required this.avatar,
+    required this.level,
+    this.achievements = const [],
+    this.stats = const {},
+    required this.preferences,
+    required this.joinDate,
+    this.completedActions = const [],
+    this.redeemedRewards = const [],
+    this.totalCarbonOffset = 0.0,
+    this.referralCode,
+    this.friends = const [],
+  });
+
+  bool get isNewUser => DateTime.now().difference(joinDate).inDays < 7;
+  int get totalAchievements => achievements.length;
+  int get completedActionsCount => completedActions.length;
+  bool get hasReferralCode => referralCode != null;
+
+  User copyWith({
+    String? id,
+    String? name,
+    String? email,
+    int? points,
+    String? avatar,
+    UserLevel? level,
+    List<String>? achievements,
+    Map<String, int>? stats,
+    UserPreferences? preferences,
+    DateTime? joinDate,
+    List<String>? completedActions,
+    List<String>? redeemedRewards,
+    double? totalCarbonOffset,
+    String? referralCode,
+    List<String>? friends,
+  }) {
+    return User(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      email: email ?? this.email,
+      points: points ?? this.points,
+      avatar: avatar ?? this.avatar,
+      level: level ?? this.level,
+      achievements: achievements ?? this.achievements,
+      stats: stats ?? this.stats,
+      preferences: preferences ?? this.preferences,
+      joinDate: joinDate ?? this.joinDate,
+      completedActions: completedActions ?? this.completedActions,
+      redeemedRewards: redeemedRewards ?? this.redeemedRewards,
+      totalCarbonOffset: totalCarbonOffset ?? this.totalCarbonOffset,
+      referralCode: referralCode ?? this.referralCode,
+      friends: friends ?? this.friends,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'email': email,
+    'points': points,
+    'avatar': avatar,
+    'level': level.toJson(),
+    'achievements': achievements,
+    'stats': stats,
+    'preferences': preferences.toJson(),
+    'joinDate': joinDate.toIso8601String(),
+    'completedActions': completedActions,
+    'redeemedRewards': redeemedRewards,
+    'totalCarbonOffset': totalCarbonOffset,
+    'referralCode': referralCode,
+    'friends': friends,
+  };
+
+  factory User.fromJson(Map<String, dynamic> json) => User(
+    id: json['id'],
+    name: json['name'],
+    email: json['email'],
+    points: json['points'],
+    avatar: json['avatar'],
+    level: UserLevel.fromJson(json['level']),
+    achievements: List<String>.from(json['achievements']),
+    stats: Map<String, int>.from(json['stats']),
+    preferences: UserPreferences.fromJson(json['preferences']),
+    joinDate: DateTime.parse(json['joinDate']),
+    completedActions: List<String>.from(json['completedActions']),
+    redeemedRewards: List<String>.from(json['redeemedRewards']),
+    totalCarbonOffset: json['totalCarbonOffset'],
+    referralCode: json['referralCode'],
+    friends: List<String>.from(json['friends']),
+  );
+}
+
+@immutable
+class UserLevel {
+  final int level;
+  final int currentXP;
+  final int requiredXP;
+  final String title;
+
+  const UserLevel({
+    required this.level,
+    required this.currentXP,
+    required this.requiredXP,
+    required this.title,
+  });
+
+  double get progress => currentXP / requiredXP;
+
+  Map<String, dynamic> toJson() => {
+    'level': level,
+    'currentXP': currentXP,
+    'requiredXP': requiredXP,
+    'title': title,
+  };
+
+  factory UserLevel.fromJson(Map<String, dynamic> json) => UserLevel(
+    level: json['level'],
+    currentXP: json['currentXP'],
+    requiredXP: json['requiredXP'],
+    title: json['title'],
+  );
+}
+
+@immutable
+class UserPreferences {
+  final bool darkMode;
+  final bool notifications;
+  final String language;
+  final List<String> interests;
+  final bool locationTracking;
+
+  const UserPreferences({
+    this.darkMode = false,
+    this.notifications = true,
+    this.language = 'en',
+    this.interests = const [],
+    this.locationTracking = false,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'darkMode': darkMode,
+    'notifications': notifications,
+    'language': language,
+    'interests': interests,
+    'locationTracking': locationTracking,
+  };
+
+  factory UserPreferences.fromJson(Map<String, dynamic> json) => UserPreferences(
+    darkMode: json['darkMode'],
+    notifications: json['notifications'],
+    language: json['language'],
+    interests: List<String>.from(json['interests']),
+    locationTracking: json['locationTracking'],
+  );
+}
+
+--- Content of achievement.dart ---
+// lib/models/achievement.dart
+import 'package:flutter/material.dart';
+
+@immutable
+class Achievement {
+  final String id;
+  final String title;
+  final String description;
+  final IconData icon;
+  final DateTime? unlockedAt;
+  final int progressRequired;
+  final int currentProgress;
+  final String category;
+  final List<String> rewards;
+  final Color? color;
+  final bool isLocked;
+
+  const Achievement({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.icon,
+    this.unlockedAt,
+    this.progressRequired = 1,
+    this.currentProgress = 0,
+    this.category = 'General',
+    this.rewards = const [],
+    this.color,
+    this.isLocked = true,
+  });
+
+  bool get isUnlocked => unlockedAt != null;
+  double get progressPercentage => (currentProgress / progressRequired).clamp(0.0, 1.0);
+
+  Achievement copyWith({
+    String? id,
+    String? title,
+    String? description,
+    IconData? icon,
+    DateTime? unlockedAt,
+    int? progressRequired,
+    int? currentProgress,
+    String? category,
+    List<String>? rewards,
+    Color? color,
+    bool? isLocked,
+  }) {
+    return Achievement(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      icon: icon ?? this.icon,
+      unlockedAt: unlockedAt ?? this.unlockedAt,
+      progressRequired: progressRequired ?? this.progressRequired,
+      currentProgress: currentProgress ?? this.currentProgress,
+      category: category ?? this.category,
+      rewards: rewards ?? this.rewards,
+      color: color ?? this.color,
+      isLocked: isLocked ?? this.isLocked,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'title': title,
+    'description': description,
+    'iconCodePoint': icon.codePoint,
+    'unlockedAt': unlockedAt?.toIso8601String(),
+    'progressRequired': progressRequired,
+    'currentProgress': currentProgress,
+    'category': category,
+    'rewards': rewards,
+    'isLocked': isLocked,
+  };
+
+  factory Achievement.fromJson(Map<String, dynamic> json) => Achievement(
+    id: json['id'],
+    title: json['title'],
+    description: json['description'],
+    icon: IconData(json['iconCodePoint'], fontFamily: 'MaterialIcons'),
+    unlockedAt: json['unlockedAt'] != null 
+        ? DateTime.parse(json['unlockedAt'])
+        : null,
+    progressRequired: json['progressRequired'],
+    currentProgress: json['currentProgress'],
+    category: json['category'],
+    rewards: List<String>.from(json['rewards']),
+    isLocked: json['isLocked'],
+  );
+}
+
+
+--- Content of reward.dart ---
+// lib/models/reward.dart
+import 'package:flutter/material.dart';
+
+@immutable
+class Reward {
+  final String id;
+  final String title;
+  final String description;
+  final int points;
+  final String image;
+  final String category;
+  final DateTime? expiryDate;
+  final bool isAvailable;
+  final int stockCount;
+  final List<String> termsAndConditions;
+  final Map<String, dynamic> metadata;
+  final String? brandName;
+  final String? brandLogo;
+  final double? originalPrice;
+  final double? discountedPrice;
+  final List<String>? redemptionInstructions;
+
+  const Reward({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.points,
+    required this.image,
+    this.category = 'General',
+    this.expiryDate,
+    this.isAvailable = true,
+    this.stockCount = -1, // -1 means unlimited
+    this.termsAndConditions = const [],
+    this.metadata = const {},
+    this.brandName,
+    this.brandLogo,
+    this.originalPrice,
+    this.discountedPrice,
+    this.redemptionInstructions,
+  });
+
+  bool get isExpired => expiryDate?.isBefore(DateTime.now()) ?? false;
+  bool get isInStock => stockCount == -1 || stockCount > 0;
+  bool get canBeRedeemed => isAvailable && !isExpired && isInStock;
+  double get savingsPercentage => originalPrice != null && discountedPrice != null
+      ? ((originalPrice! - discountedPrice!) / originalPrice! * 100)
+      : 0.0;
+
+  Reward copyWith({
+    String? id,
+    String? title,
+    String? description,
+    int? points,
+    String? image,
+    String? category,
+    DateTime? expiryDate,
+    bool? isAvailable,
+    int? stockCount,
+    List<String>? termsAndConditions,
+    Map<String, dynamic>? metadata,
+    String? brandName,
+    String? brandLogo,
+    double? originalPrice,
+    double? discountedPrice,
+    List<String>? redemptionInstructions,
+  }) {
+    return Reward(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      points: points ?? this.points,
+      image: image ?? this.image,
+      category: category ?? this.category,
+      expiryDate: expiryDate ?? this.expiryDate,
+      isAvailable: isAvailable ?? this.isAvailable,
+      stockCount: stockCount ?? this.stockCount,
+      termsAndConditions: termsAndConditions ?? this.termsAndConditions,
+      metadata: metadata ?? this.metadata,
+      brandName: brandName ?? this.brandName,
+      brandLogo: brandLogo ?? this.brandLogo,
+      originalPrice: originalPrice ?? this.originalPrice,
+      discountedPrice: discountedPrice ?? this.discountedPrice,
+      redemptionInstructions: redemptionInstructions ?? this.redemptionInstructions,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'title': title,
+    'description': description,
+    'points': points,
+    'image': image,
+    'category': category,
+    'expiryDate': expiryDate?.toIso8601String(),
+    'isAvailable': isAvailable,
+    'stockCount': stockCount,
+    'termsAndConditions': termsAndConditions,
+    'metadata': metadata,
+    'brandName': brandName,
+    'brandLogo': brandLogo,
+    'originalPrice': originalPrice,
+    'discountedPrice': discountedPrice,
+    'redemptionInstructions': redemptionInstructions,
+  };
+
+  factory Reward.fromJson(Map<String, dynamic> json) => Reward(
+    id: json['id'],
+    title: json['title'],
+    description: json['description'],
+    points: json['points'],
+    image: json['image'],
+    category: json['category'],
+    expiryDate: json['expiryDate'] != null 
+        ? DateTime.parse(json['expiryDate'])
+        : null,
+    isAvailable: json['isAvailable'],
+    stockCount: json['stockCount'],
+    termsAndConditions: List<String>.from(json['termsAndConditions']),
+    metadata: json['metadata'],
+    brandName: json['brandName'],
+    brandLogo: json['brandLogo'],
+    originalPrice: json['originalPrice'],
+    discountedPrice: json['discountedPrice'],
+    redemptionInstructions: json['redemptionInstructions'] != null
+        ? List<String>.from(json['redemptionInstructions'])
+        : null,
+  );
+}
+
+
+

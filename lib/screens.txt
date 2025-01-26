@@ -1,0 +1,2275 @@
+--- Content of preview_screen.dart ---
+//lib/screens/preview_screen.dart
+
+import 'package:flutter/material.dart';
+import 'dart:io';
+import '../widgets/action_button.dart';
+import 'package:logging/logging.dart';
+
+class PreviewScreen extends StatelessWidget {
+  final File imageFile;
+  final List<File> fileList;
+  final Logger _logger = Logger('PreviewScreen');
+
+  PreviewScreen({
+    Key? key,
+    required this.imageFile,
+    required this.fileList,
+  }) : super(key: key);
+
+  // Implement image processing and eco-action validation
+  void processAndValidateImage() {
+    // Add image processing logic here
+    // Add eco-action validation logic here
+    _logger.info('Image processed and eco-action validated');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Image.file(
+              imageFile,
+              fit: BoxFit.cover,
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Preview',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    ActionButton(
+                      icon: Icons.close,
+                      onPressed: () => Navigator.pop(context),
+                      label: 'Discard',
+                    ),
+                    ActionButton(
+                      icon: Icons.check,
+                      onPressed: () {
+                        processAndValidateImage();
+                        Navigator.pop(context);
+                      },
+                      label: 'Submit',
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+
+--- Content of camera_screen.dart ---
+// lib/screens/camera_screen.dart
+import 'package:flutter/material.dart';
+import 'package:camera/camera.dart';
+import 'dart:io';
+import 'preview_screen.dart';
+import 'package:logging/logging.dart';
+
+class CameraScreen extends StatefulWidget {
+  const CameraScreen({Key? key}) : super(key: key);
+
+  @override
+  State<CameraScreen> createState() => CameraScreenState();
+}
+
+class CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver {
+  CameraController? _controller;
+  bool _isCameraInitialized = false;
+  bool _isRearCameraSelected = false; // Front camera by default
+  double _currentZoomLevel = 1.0;
+  final Logger _logger = Logger('CameraScreen');
+  bool _isFlashOn = false;
+  final double _minZoomLevel = 1.0;
+  final double _maxZoomLevel = 5.0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _initializeCamera();
+  }
+
+  Future<void> _initializeCamera() async {
+    try {
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) {
+        _logger.warning('No cameras available');
+        return;
+      }
+
+      // Find front camera
+      final frontCamera = cameras.firstWhere(
+        (camera) => camera.lensDirection == CameraLensDirection.front,
+        orElse: () => cameras.first,
+      );
+
+      final CameraController cameraController = CameraController(
+        frontCamera,
+        ResolutionPreset.max,
+        enableAudio: false,
+      );
+
+      await cameraController.initialize();
+      await cameraController.setFlashMode(FlashMode.off);
+      
+      // Get min and max zoom levels
+      if (mounted) {
+        setState(() {
+          _controller = cameraController;
+          _isCameraInitialized = true;
+        });
+      }
+    } catch (e) {
+      _logger.severe('Error initializing camera: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final CameraController? cameraController = _controller;
+
+    if (cameraController == null || !cameraController.value.isInitialized) {
+      return;
+    }
+
+    if (state == AppLifecycleState.inactive) {
+      cameraController.dispose();
+    } else if (state == AppLifecycleState.resumed) {
+      _initializeCamera();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            _buildCameraPreview(),
+            _buildOverlayControls(),
+            _buildCameraControls(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCameraPreview() {
+    if (!_isCameraInitialized || _controller == null) {
+      return const Center(
+        child: CircularProgressIndicator(
+          color: Colors.white,
+        ),
+      );
+    }
+
+    return CameraPreview(_controller!);
+  }
+
+  Widget _buildOverlayControls() {
+    return Positioned(
+      top: 16,
+      left: 16,
+      right: 16,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(
+            icon: Icon(
+              _isFlashOn ? Icons.flash_on : Icons.flash_off,
+              color: Colors.white,
+              size: 28,
+            ),
+            onPressed: () async {
+              if (_controller == null) return;
+              setState(() => _isFlashOn = !_isFlashOn);
+              await _controller!.setFlashMode(
+                _isFlashOn ? FlashMode.torch : FlashMode.off,
+              );
+            },
+          ),
+          IconButton(
+            icon: Icon(
+              _isRearCameraSelected ? Icons.camera_front : Icons.camera_rear,
+              color: Colors.white,
+              size: 28,
+            ),
+            onPressed: () async {
+              setState(() => _isRearCameraSelected = !_isRearCameraSelected);
+              await _initializeCamera();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCameraControls() {
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: Container(
+        height: 120,
+        decoration: const BoxDecoration(
+          color: Colors.black87,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            IconButton(
+              icon: const Icon(
+                Icons.photo_library,
+                color: Colors.white,
+                size: 32,
+              ),
+              onPressed: () {
+                // Implement gallery picker
+              },
+            ),
+            GestureDetector(
+              onTap: _takePicture,
+              child: Container(
+                height: 80,
+                width: 80,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 4),
+                ),
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  margin: const EdgeInsets.all(8),
+                ),
+              ),
+            ),
+            const SizedBox(width: 64), // Placeholder for symmetry
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _takePicture() async {
+    final CameraController? cameraController = _controller;
+    if (cameraController == null || !cameraController.value.isInitialized) {
+      _showErrorDialog('Error', 'Camera is not ready');
+      return;
+    }
+
+    if (cameraController.value.isTakingPicture) {
+      return;
+    }
+
+    try {
+      final XFile photo = await cameraController.takePicture();
+      if (!mounted) return;
+
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => PreviewScreen(
+            imageFile: File(photo.path),
+            fileList: const [],
+          ),
+        ),
+      );
+    } catch (e) {
+      _logger.severe('Error taking picture: $e');
+      _showErrorDialog('Camera Error', 'Failed to capture image');
+    }
+  }
+
+  void _showErrorDialog(String title, String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+--- Content of profile_screen.dart ---
+// lib/screens/profile_screen.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import '../widgets/achievement_card.dart';
+import '../models/achievement.dart';
+import '../widgets/animated_progress_bar.dart';
+import '../widgets/post_card.dart';
+import '../models/post.dart';
+
+class ProfileScreen extends StatefulWidget {
+  const ProfileScreen({Key? key}) : super(key: key);
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    await Future.delayed(const Duration(seconds: 2));
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: RefreshIndicator(
+        onRefresh: _loadData,
+        child: CustomScrollView(
+          slivers: [
+            _buildAppBar(context),
+            SliverToBoxAdapter(
+              child: Column(
+                children: [
+                  _buildProfileHeader(context),
+                  const SizedBox(height: 16),
+                  _buildLevelProgress(context),
+                  const SizedBox(height: 24),
+                  _buildTabBar(context),
+                ],
+              ),
+            ),
+            SliverFillRemaining(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildAchievementsTab(),
+                  _buildActivityTab(),
+                  _buildPostsTab(),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAppBar(BuildContext context) {
+    return SliverAppBar(
+      floating: true,
+      pinned: true,
+      expandedHeight: 60,
+      backgroundColor: Theme.of(context).colorScheme.primary,
+      centerTitle: true,
+      flexibleSpace: FlexibleSpaceBar(
+        title: const Text(
+          'Profile',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold
+          ),
+        ),
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(
+            Icons.settings,
+            color: Colors.white,
+          ),
+          onPressed: () {
+            // Implement settings
+          },
+        ),
+        IconButton(
+          icon: const Icon(
+            Icons.edit,
+            color: Colors.white,
+          ),
+          onPressed: () {
+            // Implement profile editing
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProfileHeader(BuildContext context) {
+    if (_isLoading) {
+      return _buildShimmerLoading();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        children: [
+          Stack(
+            alignment: Alignment.bottomRight,
+            children: [
+              Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.primary,
+                    width: 4,
+                  ),
+                ),
+                child: ClipOval(
+                  child: Image.asset(
+                    'assets/images/profile_picture.jpg',
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.camera_alt,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+            ],
+          ).animate().scale(),
+          const SizedBox(height: 16),
+          Text(
+            'John Doe',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ).animate().fadeIn(),
+          const SizedBox(height: 4),
+          Text(
+            'Eco Warrior Level 5',
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+          ).animate().fadeIn(),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildStatItem(context, '1.5K', 'Points'),
+              _buildStatDivider(),
+              _buildStatItem(context, '23', 'Actions'),
+              _buildStatDivider(),
+              _buildStatItem(context, '12', 'Rewards'),
+            ],
+          ).animate().fadeIn(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem(BuildContext context, String value, String label) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatDivider() {
+    return Container(
+      height: 24,
+      width: 1,
+      color: Colors.grey.withAlpha(77),
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+    );
+  }
+
+  Widget _buildLevelProgress(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Level 5',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              Text(
+                '500/1000 XP',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          AnimatedProgressBar(
+            progress: 0.5,
+            backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+            foregroundColor: Theme.of(context).colorScheme.primary,
+          ),
+        ],
+      ),
+    ).animate().fadeIn();
+  }
+
+  Widget _buildTabBar(BuildContext context) {
+    return TabBar(
+      controller: _tabController,
+      tabs: const [
+        Tab(text: 'Achievements'),
+        Tab(text: 'Activity'),
+        Tab(text: 'Posts'),
+      ],
+      indicatorColor: Theme.of(context).colorScheme.primary,
+      labelColor: Theme.of(context).colorScheme.primary,
+      unselectedLabelColor: Theme.of(context).colorScheme.onSurface,
+    );
+  }
+
+  Widget _buildAchievementsTab() {
+    if (_isLoading) {
+      return _buildShimmerLoading();
+    }
+
+    final achievements = [
+      Achievement(
+        id: '1',
+        title: 'Tree Hugger',
+        description: 'Plant your first tree',
+        icon: Icons.park,
+        isLocked: false,
+      ),
+      Achievement(
+        id: '2',
+        title: 'Waste Warrior',
+        description: 'Recycle 100 items',
+        icon: Icons.recycling,
+        progressRequired: 100,
+        currentProgress: 75,
+      ),
+    ];
+
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: achievements.map((achievement) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: AchievementCard(
+            achievement: achievement,
+          ).animate().fadeIn(),
+        )).toList(),
+      ),
+    );
+  }
+
+  Widget _buildActivityTab() {
+    if (_isLoading) {
+      return _buildShimmerLoading();
+    }
+
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: List.generate(10, (index) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Card(
+            child: ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.eco,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+              title: const Text('Planted a tree'),
+              subtitle: const Text('2 days ago'),
+              trailing: Text(
+                '+100 pts',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ).animate().fadeIn(delay: Duration(milliseconds: 100 * index)),
+        )).toList(),
+      ),
+    );
+  }
+
+  Widget _buildPostsTab() {
+    if (_isLoading) {
+      return _buildShimmerLoading();
+    }
+
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: _getDummyPosts().map((post) => Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: PostCard(
+            post: post,
+            onLike: () {},
+            onComment: () {},
+            onShare: () {},
+          ).animate().fadeIn(),
+        )).toList(),
+      ),
+    );
+  }
+
+  List<Post> _getDummyPosts() {
+    return [
+      Post(
+        id: '1',
+        userId: 'user123',
+        userName: 'John Doe',
+        userAvatar: 'assets/images/profile_picture.jpg',
+        imageUrl: 'assets/images/post1.jpg',
+        description: 'Just planted my first tree! 🌳 #SaveTheEarth',
+        actionType: 'Plant a Tree',
+        points: 100,
+        likes: 24,
+        comments: 5,
+        createdAt: DateTime.now().subtract(const Duration(days: 2)),
+        isLiked: false,
+      ),
+      Post(
+        id: '2',
+        userId: 'user123',
+        userName: 'John Doe',
+        userAvatar: 'assets/images/profile_picture.jpg',
+        imageUrl: 'assets/images/post2.jpg',
+        description: 'Recycled all my electronics today! ♻️ #Sustainability',
+        actionType: 'Recycle Electronics',
+        points: 50,
+        likes: 15,
+        comments: 3,
+        createdAt: DateTime.now().subtract(const Duration(days: 5)),
+        isLiked: true,
+      ),
+    ];
+  }
+
+  Widget _buildShimmerLoading() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 200,
+            height: 24,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            width: 150,
+            height: 16,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+        ],
+      ),
+    ).animate(onPlay: (controller) => controller.repeat())
+        .shimmer(duration: const Duration(seconds: 1));
+  }
+}
+
+--- Content of social_feed_screen.dart ---
+// lib/screens/social_feed_screen.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import '../widgets/post_card.dart';
+import '../widgets/comments_sheet.dart';
+import '../models/post.dart';
+import '../services/database_service.dart';
+import 'package:timeago/timeago.dart' as timeago;
+
+class SocialFeedScreen extends StatefulWidget {
+  const SocialFeedScreen({Key? key}) : super(key: key);
+
+  @override
+  State<SocialFeedScreen> createState() => _SocialFeedScreenState();
+}
+
+class _SocialFeedScreenState extends State<SocialFeedScreen> {
+  final _scrollController = ScrollController();
+  final _databaseService = DatabaseService();
+  bool _isLoading = false;
+  bool _isGridView = false;
+  String _selectedFilter = 'All';
+  List<Post> _posts = [];
+  int _currentPage = 0;
+  static const int _postsPerPage = 10;
+
+  final List<String> _filters = [
+    'All',
+    'Trending',
+    'Following',
+    'Nearby',
+    'Tree Planting',
+    'Recycling',
+    'Clean Energy',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPosts();
+    _scrollController.addListener(_onScroll);
+  }
+
+  Future<void> _loadPosts() async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+
+    try {
+      final posts = await _databaseService.getPosts(
+        limit: _postsPerPage,
+        offset: _currentPage * _postsPerPage,
+      );
+      
+      setState(() {
+        if (_currentPage == 0) {
+          _posts = posts;
+        } else {
+          _posts.addAll(posts);
+        }
+        _isLoading = false;
+        _currentPage++;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading posts: $e')),
+      );
+    }
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      _loadPosts();
+    }
+  }
+
+  Future<void> _refreshPosts() async {
+    _currentPage = 0;
+    await _loadPosts();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: RefreshIndicator(
+        onRefresh: _refreshPosts,
+        child: CustomScrollView(
+          controller: _scrollController,
+          slivers: [
+            _buildAppBar(context),
+            _buildFilters(),
+            _buildToggleView(),
+            _isGridView ? _buildGridView() : _buildListView(),
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          // Navigate to create post screen
+        },
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        child: const Icon(Icons.add_a_photo, color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _buildAppBar(BuildContext context) {
+    return SliverAppBar(
+      expandedHeight: 60,
+      floating: false,
+      pinned: true,
+      stretch: true,
+      backgroundColor: Theme.of(context).colorScheme.primary,
+      flexibleSpace: FlexibleSpaceBar(
+        title: const Text(
+          'Community Feed',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        background: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Theme.of(context).colorScheme.primary,
+                Theme.of(context).colorScheme.primary.withAlpha(178),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.search, color: Colors.white),
+          onPressed: () {
+            // Implement search
+          },
+        ),
+        IconButton(
+          icon: Icon(
+            _isGridView ? Icons.view_agenda : Icons.grid_view,
+            color: Colors.white,
+          ),
+          onPressed: () {
+            setState(() {
+              _isGridView = !_isGridView;
+            });
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFilters() {
+    return SliverToBoxAdapter(
+      child: Container(
+        height: 50,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          itemCount: _filters.length,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          itemBuilder: (context, index) {
+            final filter = _filters[index];
+            final isSelected = _selectedFilter == filter;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: FilterChip(
+                selected: isSelected,
+                label: Text(filter),
+                onSelected: (selected) {
+                  setState(() {
+                    _selectedFilter = filter;
+                    _refreshPosts();
+                  });
+                },
+                backgroundColor: isSelected
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.surface,
+                labelStyle: TextStyle(
+                  color: isSelected ? Colors.white : null,
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildToggleView() {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Recent Posts',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            Row(
+              children: [
+                Icon(
+                  Icons.trending_up,
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 20,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '${_posts.length} posts',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGridView() {
+    if (_posts.isEmpty) {
+      return SliverFillRemaining(
+        child: Center(
+          child: _isLoading
+              ? const CircularProgressIndicator()
+              : const Text('No posts yet'),
+        ),
+      );
+    }
+
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      sliver: SliverMasonryGrid.count(
+        crossAxisCount: 2,
+        mainAxisSpacing: 16,
+        crossAxisSpacing: 16,
+        itemBuilder: (context, index) {
+          if (index >= _posts.length) {
+            return _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : const SizedBox();
+          }
+
+          final post = _posts[index];
+          return GestureDetector(
+            onTap: () => _showPostDetails(post),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AspectRatio(
+                    aspectRatio: index.isEven ? 1 : 0.8,
+                    child: Image.network(
+                      post.imageUrl,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 12,
+                              backgroundImage: NetworkImage(post.userAvatar),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                post.userName,
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          post.description,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.favorite,
+                              size: 16,
+                              color: post.isLiked ? Colors.red : Colors.grey,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${post.likes}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            const SizedBox(width: 16),
+                            const Icon(
+                              Icons.comment_outlined,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${post.comments}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ).animate().fadeIn(delay: Duration(milliseconds: 100 * index));
+        },
+        childCount: _posts.length + (_isLoading ? 1 : 0),
+      ),
+    );
+  }
+
+  Widget _buildListView() {
+    if (_posts.isEmpty) {
+      return SliverFillRemaining(
+        child: Center(
+          child: _isLoading
+              ? const CircularProgressIndicator()
+              : const Text('No posts yet'),
+        ),
+      );
+    }
+
+    return SliverPadding(
+      padding: const EdgeInsets.all(16),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            if (index >= _posts.length) {
+              return _isLoading
+                  ? const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: CircularProgressIndicator(),
+                      ),
+                    )
+                  : null;
+            }
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: PostCard(
+                post: _posts[index],
+                onLike: () => _likePost(_posts[index].id),
+                onComment: () => _showComments(_posts[index]),
+                onShare: () => _sharePost(_posts[index]),
+              ).animate().fadeIn().slideX(),
+            );
+          },
+          childCount: _posts.length + (_isLoading ? 1 : 0),
+        ),
+      ),
+    );
+  }
+
+  void _showPostDetails(Post post) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.9,
+        minChildSize: 0.5,
+        maxChildSize: 0.9,
+        builder: (context, scrollController) {
+          return Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).scaffoldBackgroundColor,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              children: [
+                Expanded(
+                  child: CustomScrollView(
+                    controller: scrollController,
+                    slivers: [
+                      SliverAppBar(
+                        pinned: true,
+                        title: Text(post.userName),
+                        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+                      ),
+                      SliverToBoxAdapter(
+                        child: PostCard(
+                          post: post,
+                          onLike: () => _likePost(post.id),
+                          onComment: () => _showComments(post),
+                          onShare: () => _sharePost(post),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _likePost(String postId) async {
+    try {
+      await _databaseService.likePost(postId);
+      _refreshPosts();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error liking post: $e')),
+      );
+    }
+  }
+
+  void _showComments(Post post) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => CommentsSheet(post: post),
+    );
+  }
+
+  Future<void> _sharePost(Post post) async {
+    // Implement share functionality
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+}
+
+--- Content of rewards_screen.dart ---
+// lib/screens/rewards_screen.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import '../widgets/reward_card.dart';
+import '../models/reward.dart';
+import '../widgets/animated_progress_bar.dart';
+
+class RewardsScreen extends StatefulWidget {
+  const RewardsScreen({Key? key}) : super(key: key);
+
+  @override
+  State<RewardsScreen> createState() => _RewardsScreenState();
+}
+
+class _RewardsScreenState extends State<RewardsScreen> {
+  bool _isLoading = true;
+  String _selectedCategory = 'All';
+  final List<String> _categories = const [
+    'All',
+    'Eco Products',
+    'Vouchers',
+    'Experiences',
+    'Donations'
+  ];
+
+  final List<Reward> _rewards = [  // Remove const from here
+    Reward(
+      id: '1',
+      title: 'Bamboo Water Bottle',
+      description: 'Sustainable bamboo water bottle with stainless steel interior. 500ml capacity.',
+      points: 500,
+      image: 'assets/images/water_bottle.jpg',
+      category: 'Eco Products',
+      brandName: 'EcoLife',
+      originalPrice: 25.99,
+      discountedPrice: 19.99,
+      stockCount: 50,
+      termsAndConditions: ['Valid for 3 months', 'One redemption per user'],
+      redemptionInstructions: ['Show QR code at store', 'Present ID for verification'],
+    ),
+    Reward(
+      id: '2',
+      title: 'Organic Cotton T-shirt',
+      description: 'Comfortable t-shirt made from 100% organic cotton.',
+      points: 750,
+      image: 'assets/images/tshirt.jpg',
+      category: 'Eco Products',
+      brandName: 'GreenGear',
+      originalPrice: 45.99,
+      discountedPrice: 35.99,
+      stockCount: 30,
+      termsAndConditions: ['Available in S, M, L sizes', 'Color may vary'],
+      redemptionInstructions: ['Choose size at checkout', 'Allow 5-7 days for delivery'],
+    ),
+    Reward(
+      id: '3',
+      title: 'Solar Power Bank',
+      description: '10000mAh solar-powered power bank with dual USB ports.',
+      points: 1000,
+      image: 'assets/images/power_bank.jpg',
+      category: 'Eco Products',
+      brandName: 'EcoCharge',
+      originalPrice: 59.99,
+      discountedPrice: 49.99,
+      stockCount: 25,
+      termsAndConditions: ['1 year warranty', 'International shipping available'],
+      redemptionInstructions: ['Redeem online', 'Enter shipping details'],
+    ),
+    Reward(
+      id: '4',
+      title: 'Local Farm Voucher',
+      description: '\$50 voucher for your local organic farm market.',
+      points: 400,
+      image: 'assets/images/farm_voucher.jpg',
+      category: 'Vouchers',
+      brandName: 'Local Farms Co-op',
+      originalPrice: 50.00,
+      discountedPrice: 50.00,
+      termsAndConditions: ['Valid at participating farms only', 'No cash value'],
+      redemptionInstructions: ['Show digital voucher at checkout'],
+    ),
+    Reward(
+      id: '5',
+      title: 'Electric Bike Rental',
+      description: '2-hour electric bike rental for eco-friendly transportation.',
+      points: 300,
+      image: 'assets/images/bike_rental.jpg',
+      category: 'Experiences',
+      brandName: 'Green Wheels',
+      originalPrice: 30.00,
+      discountedPrice: 25.00,
+      termsAndConditions: ['Helmet included', 'Valid ID required', 'Age 18+ only'],
+      redemptionInstructions: ['Book time slot in advance', 'Present ID at location'],
+    ),
+    Reward(
+      id: '6',
+      title: 'Reusable Shopping Set',
+      description: 'Complete set of reusable shopping bags and produce nets.',
+      points: 600,
+      image: 'assets/images/shopping_set.jpg',
+      category: 'Eco Products',
+      brandName: 'Zero Waste Gear',
+      originalPrice: 35.99,
+      discountedPrice: 29.99,
+      stockCount: 40,
+      termsAndConditions: ['Set includes 5 bags', 'Machine washable'],
+      redemptionInstructions: ['Redeem at partner stores', 'Show redemption code'],
+    ),
+    Reward(
+      id: '7',
+      title: 'Tree Planting Kit',
+      description: 'Complete kit with seeds, soil, and tools to plant your own tree.',
+      points: 450,
+      image: 'assets/images/planting_kit.jpg',
+      category: 'Eco Products',
+      brandName: 'GreenThumb',
+      originalPrice: 40.00,
+      discountedPrice: 32.99,
+      stockCount: 35,
+      termsAndConditions: ['Includes care guide', 'Seasonal varieties may vary'],
+      redemptionInstructions: ['Collect from local garden center'],
+    ),
+    Reward(
+      id: '8',
+      title: 'Eco Workshop Pass',
+      description: 'Access to a sustainable living workshop in your area.',
+      points: 800,
+      image: 'assets/images/workshop.jpg',
+      category: 'Experiences',
+      brandName: 'EcoLearn',
+      originalPrice: 75.00,
+      discountedPrice: 65.00,
+      termsAndConditions: ['Advanced booking required', 'Subject to availability'],
+      redemptionInstructions: ['Book online using code', 'Attend in person'],
+    ),
+    Reward(
+      id: '9',
+      title: 'Wildlife Protection Donation',
+      description: 'Donate to protect endangered species in your region.',
+      points: 500,
+      image: 'assets/images/wildlife.jpg',
+      category: 'Donations',
+      brandName: 'Wildlife Foundation',
+      termsAndConditions: ['100% of points go to conservation', 'Tax deductible'],
+      redemptionInstructions: ['Choose conservation project', 'Receive certificate'],
+    ),
+    Reward(
+      id: '10',
+      title: 'Eco-Friendly Cafe Voucher',
+      description: '\$25 voucher for sustainable coffee shop.',
+      points: 250,
+      image: 'assets/images/cafe_voucher.jpg',
+      category: 'Vouchers',
+      brandName: 'Green Bean Cafe',
+      originalPrice: 25.00,
+      discountedPrice: 25.00,
+      termsAndConditions: ['Valid at all locations', 'No minimum purchase'],
+      redemptionInstructions: ['Show QR code at payment'],
+    ),
+];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRewards();
+  }
+
+  Future<void> _loadRewards() async {
+    await Future.delayed(const Duration(seconds: 2));
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: RefreshIndicator(
+        onRefresh: _loadRewards,
+        child: CustomScrollView(
+          slivers: [
+            _buildAppBar(context),
+            SliverToBoxAdapter(
+              child: Column(
+                children: [
+                  _buildPointsCard(context),
+                  _buildCategoryFilter(context),
+                ],
+              ),
+            ),
+            _buildRewardsList(context),
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          // Implement reward history
+        },
+        icon: const Icon(Icons.history),
+        label: const Text('History'),
+      ).animate().scale(delay: const Duration(milliseconds: 500)),
+    );
+  }
+
+  Widget _buildAppBar(BuildContext context) {
+    return SliverAppBar(
+      expandedHeight: 60,
+      floating: false,
+      pinned: true,
+      stretch: true,
+      backgroundColor: Theme.of(context).colorScheme.primary,
+      flexibleSpace: FlexibleSpaceBar(
+        title: const Text(
+          'Rewards',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        background: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Theme.of(context).colorScheme.primary,
+                Theme.of(context).colorScheme.primary.withAlpha(178),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(
+            Icons.filter_list,
+            color: Colors.white,
+          ),
+          onPressed: () {
+            // Implement filtering
+          },
+        ),
+        IconButton(
+          icon: const Icon(
+            Icons.search,
+            color: Colors.white,
+          ),
+          onPressed: () {
+            // Implement search
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPointsCard(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.all(16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Available Points',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '1,500',
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.stars,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 32,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            AnimatedProgressBar(
+              progress: 0.7,
+              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+              foregroundColor: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '500 more points until next tier',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+    ).animate().fadeIn().slideY(begin: 0.2);
+  }
+
+  Widget _buildCategoryFilter(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: _categories.map((category) {
+          final isSelected = _selectedCategory == category;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: FilterChip(
+              selected: isSelected,
+              label: Text(category),
+              onSelected: (selected) {
+                setState(() {
+                  _selectedCategory = category;
+                });
+              },
+              backgroundColor: isSelected
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(context).colorScheme.surface,
+              labelStyle: TextStyle(
+                color: isSelected ? Colors.white : null,
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildRewardsList(BuildContext context) {
+    if (_isLoading) {
+      return SliverToBoxAdapter(child: _buildShimmerLoading());
+    }
+
+    final filteredRewards = _selectedCategory == 'All'
+        ? _rewards
+        : _rewards.where((r) => r.category == _selectedCategory).toList();
+
+    return SliverPadding(
+      padding: const EdgeInsets.all(16),
+      sliver: SliverGrid(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          childAspectRatio: 0.75,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+        ),
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            final reward = filteredRewards[index];
+            return RewardCard(
+              reward: reward,
+              onTap: () => _showRewardDetails(context, reward),
+            ).animate().fadeIn(delay: Duration(milliseconds: 100 * index));
+          },
+          childCount: filteredRewards.length,
+        ),
+      ),
+    );
+  }
+
+  void _showRewardDetails(BuildContext context, Reward reward) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _RewardDetailsSheet(reward: reward),
+    );
+  }
+
+  Widget _buildShimmerLoading() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 200,
+            height: 24,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            width: 150,
+            height: 16,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+        ],
+      ),
+    ).animate(onPlay: (controller) => controller.repeat())
+        .shimmer(duration: const Duration(seconds: 1));
+  }
+}
+
+class _RewardDetailsSheet extends StatelessWidget {
+  final Reward reward;
+
+  const _RewardDetailsSheet({
+    Key? key,
+    required this.reward,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.9,
+      minChildSize: 0.5,
+      maxChildSize: 0.9,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: ListView(
+            controller: scrollController,
+            padding: const EdgeInsets.all(16),
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.asset(
+                  reward.image,
+                  height: 200,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      reward.title,
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.stars,
+                          size: 16,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${reward.points} points',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              if (reward.brandName != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'By ${reward.brandName}',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+              Text(
+                reward.description,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 24),
+              if (reward.originalPrice != null) ...[
+                Row(
+                  children: [
+                    Text(
+                      '\$${reward.discountedPrice?.toStringAsFixed(2)}',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '\$${reward.originalPrice?.toStringAsFixed(2)}',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        decoration: TextDecoration.lineThrough,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+              ],
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Confirm Redemption'),
+                      content: Text(
+                        'Are you sure you want to redeem ${reward.title} for ${reward.points} points?'
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Cancel'),
+                        ),
+                        FilledButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Successfully redeemed ${reward.title}!'),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          },
+                          child: const Text('Confirm'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+                child: const Text('Redeem Now'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+--- Content of main_screen.dart ---
+// lib/screens/main_screen.dart
+import 'package:flutter/material.dart';
+import 'home_screen.dart';
+import 'camera_screen.dart';
+import 'profile_screen.dart';
+import 'rewards_screen.dart';
+import 'social_feed_screen.dart';  // Add this import
+
+class MainScreen extends StatefulWidget {
+  const MainScreen({Key? key}) : super(key: key);
+
+  @override
+  State<MainScreen> createState() => _MainScreenState();
+}
+
+class _MainScreenState extends State<MainScreen> {
+  int _currentIndex = 0;
+  
+  final List<Widget> _screens = [
+    const HomeScreen(),
+    const SocialFeedScreen(),  // Add the social feed screen
+    const CameraScreen(),
+    const ProfileScreen(),
+    const RewardsScreen(),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: IndexedStack(
+        index: _currentIndex,
+        children: _screens,
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
+        currentIndex: _currentIndex,
+        onTap: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: 'Home',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.feed),  // Add social feed icon
+            label: 'Feed',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.camera_alt),
+            label: 'Camera',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person),
+            label: 'Profile',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.card_giftcard),
+            label: 'Rewards',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+--- Content of home_screen.dart ---
+// lib/screens/home_screen.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import '../widgets/eco_action_card.dart';
+import '../widgets/leaderboard_card.dart';
+import '../models/eco_action.dart';
+import '../models/user.dart';
+import '../widgets/animated_progress_bar.dart';
+import '../widgets/challenge_card.dart';
+import '../widgets/stats_card.dart';
+import 'package:intl/intl.dart';
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({Key? key}) : super(key: key);
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+  late TabController _leaderboardTabController;
+  bool _isLoading = true;
+  late ScrollController _scrollController;
+  double _scrollOffset = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _leaderboardTabController = TabController(length: 2, vsync: this);
+    _scrollController = ScrollController()
+      ..addListener(() {
+        setState(() {
+          _scrollOffset = _scrollController.offset;
+        });
+      });
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    await Future.delayed(const Duration(seconds: 2));
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _leaderboardTabController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: RefreshIndicator(
+        onRefresh: _loadData,
+        child: CustomScrollView(
+          controller: _scrollController,
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            _buildAppBar(context),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildWelcomeSection(),
+                    const SizedBox(height: 16),
+                    _buildCompactPointsDisplay(),
+                    const SizedBox(height: 16),
+                    _buildWeeklyChallenges(),
+                    const SizedBox(height: 24),
+                    _buildEcoActionsList(),
+                    const SizedBox(height: 24),
+                    _buildImpactStats(context),
+                    const SizedBox(height: 24),
+                    _buildLeaderboardSection(),
+                  ].animate(interval: const Duration(milliseconds: 100))
+                    .fadeIn()
+                    .slideX(),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAppBar(BuildContext context) {
+    return SliverAppBar(
+      expandedHeight: 60,
+      floating: false,
+      pinned: true,
+      stretch: true,
+      backgroundColor: Theme.of(context).colorScheme.primary,
+      flexibleSpace: FlexibleSpaceBar(
+        title: const Text(
+          'ReLeaf',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        background: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Theme.of(context).colorScheme.primary,
+                Theme.of(context).colorScheme.primary.withAlpha(178),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+          onPressed: () {},
+        ),
+        IconButton(
+          icon: const Icon(Icons.search, color: Colors.white),
+          onPressed: () {},
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWelcomeSection() {
+    if (_isLoading) return _buildShimmerLoading();
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Welcome back, John!',
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
+        Text(
+          DateFormat('EEEE, MMMM d').format(DateTime.now()),
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCompactPointsDisplay() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Icon(
+              Icons.stars,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '1,500 Points',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              '500 until next level',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWeeklyChallenges() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Weekly Challenges',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 12),
+        ChallengeCard(
+          title: 'Plant Trees Challenge',
+          description: 'Plant 3 trees this week',
+          progress: 0.33,
+          daysLeft: 4,
+          reward: '500 points',
+          onTap: () {},
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEcoActionsList() {
+    final actions = [
+      EcoAction(
+        id: '1',
+        title: 'Plant a Tree',
+        description: 'Plant a tree in your local community',
+        points: 100,
+        icon: Icons.nature,
+        category: 'Planting',
+      ),
+      EcoAction(
+        id: '2',
+        title: 'Recycle Electronics',
+        description: 'Properly dispose of old electronics',
+        points: 50,
+        icon: Icons.phone_android,
+        category: 'Recycling',
+      ),
+      EcoAction(
+        id: '3',
+        title: 'Use Public Transport',
+        description: 'Commute using public transportation',
+        points: 30,
+        icon: Icons.directions_bus,
+        category: 'Transportation',
+      ),
+    ];
+
+    return Container(
+      margin: EdgeInsets.zero,
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'This Week\'s Eco Actions',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 8),
+          ...actions.map((action) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: EcoActionCard(
+              action: action,
+              onTap: () {},
+            ),
+          )).toList(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImpactStats(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Your Impact',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: StatsCard(
+                title: 'Carbon Offset',
+                value: '2,500 kg',
+                icon: Icons.eco,
+                color: Colors.green,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: StatsCard(
+                title: 'Trees Planted',
+                value: '150',
+                icon: Icons.park,
+                color: Colors.brown,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLeaderboardSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Leaderboard',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 12),
+        Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            children: [
+              TabBar(
+                controller: _leaderboardTabController,
+                tabs: const [
+                  Tab(text: 'Friends'),
+                  Tab(text: 'Global'),
+                ],
+              ),
+              SizedBox(
+                height: 200,
+                child: TabBarView(
+                  controller: _leaderboardTabController,
+                  children: [
+                    _buildLeaderboardList(isFriends: true),
+                    _buildLeaderboardList(isFriends: false),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLeaderboardList({required bool isFriends}) {
+    final users = isFriends ? _getDummyFriends() : _getDummyGlobalUsers();
+    
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: users.length,
+      itemBuilder: (context, index) {
+        final user = users[index];
+        return ListTile(
+          leading: CircleAvatar(
+            backgroundImage: AssetImage(user.avatar),
+          ),
+          title: Text(user.name),
+          trailing: Text(
+            '${user.points} pts',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.primary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  List<User> _getDummyFriends() {
+    return [
+      User(
+        id: '1',
+        name: 'Alice Johnson',
+        email: 'alice@example.com',
+        points: 1200,
+        avatar: 'assets/images/avatar1.png',
+        level: UserLevel(
+          level: 5,
+          currentXP: 500,
+          requiredXP: 1000,
+          title: 'Eco Warrior',
+        ),
+        preferences: const UserPreferences(),
+        joinDate: DateTime.now(),
+      ),
+      // Add more friends...
+    ];
+  }
+
+  List<User> _getDummyGlobalUsers() {
+    return [
+      User(
+        id: '2',
+        name: 'Bob Smith',
+        email: 'bob@example.com',
+        points: 2000,
+        avatar: 'assets/images/avatar2.png',
+        level: UserLevel(
+          level: 7,
+          currentXP: 800,
+          requiredXP: 1000,
+          title: 'Nature Guardian',
+        ),
+        preferences: const UserPreferences(),
+        joinDate: DateTime.now(),
+      ),
+      // Add more global users...
+    ];
+  }
+
+  Widget _buildShimmerLoading() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 200,
+            height: 24,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            width: 150,
+            height: 16,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+        ],
+      ),
+    ).animate(onPlay: (controller) => controller.repeat())
+        .shimmer(duration: const Duration(seconds: 1));
+  }
+}
+

@@ -1,0 +1,6838 @@
+--- Content of supabase_config.dart in folder utils ---
+// lib/utils/supabase_config.dart
+const String supabaseUrl = 'https://vqojpbcuegjkytllrjbu.supabase.co';
+const String supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZxb2pwYmN1ZWdqa3l0bGxyamJ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc0MzI3MzIsImV4cCI6MjA1MzAwODczMn0.liLrx8NbHk7flD9WRwrcoeaJZ_Q5oGPEGSmC8X24T2s';
+
+--- Content of validators.dart in folder utils ---
+// lib/utils/validators.dart
+class Validators {
+  static String? validateEmail(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Email is required';
+    }
+    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    if (!emailRegex.hasMatch(value)) {
+      return 'Enter a valid email address';
+    }
+    return null;
+  }
+
+  static String? validatePassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Password is required';
+    }
+    if (value.length < 8) {
+      return 'Password must be at least 8 characters';
+    }
+    if (!value.contains(RegExp(r'[A-Z]'))) {
+      return 'Password must contain at least one uppercase letter';
+    }
+    if (!value.contains(RegExp(r'[0-9]'))) {
+      return 'Password must contain at least one number';
+    }
+    return null;
+  }
+
+  static String? validateName(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Name is required';
+    }
+    if (value.length < 2) {
+      return 'Name must be at least 2 characters';
+    }
+    return null;
+  }
+}
+
+
+
+--- Content of image_picker_helper.dart in folder utils ---
+// lib/utils/image_picker_helper.dart
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'dart:async'; // Add this import for Completer
+import 'app_logger.dart';
+
+class ImagePickerHelper {
+  static final ImagePicker _picker = ImagePicker();
+
+  /// Pick an image from camera or gallery
+  static Future<File?> pickImage({
+    required ImageSource source,
+    double? maxWidth,
+    double? maxHeight,
+    int? imageQuality,
+  }) async {
+    try {
+      final XFile? pickedFile = await _picker.pickImage(
+        source: source,
+        maxWidth: maxWidth,
+        maxHeight: maxHeight,
+        imageQuality: imageQuality ?? 85,
+      );
+
+      if (pickedFile == null) {
+        AppLogger.info('No image selected');
+        return null;
+      }
+
+      return File(pickedFile.path);
+    } catch (e) {
+      AppLogger.error('Error picking image', error: e);
+      return null;
+    }
+  }
+
+  /// Pick multiple images from gallery
+  static Future<List<File>> pickMultipleImages({
+    double? maxWidth,
+    double? maxHeight,
+    int? imageQuality,
+  }) async {
+    try {
+      final List<XFile> pickedFiles = await _picker.pickMultiImage(
+        maxWidth: maxWidth,
+        maxHeight: maxHeight,
+        imageQuality: imageQuality ?? 85,
+      );
+
+      return pickedFiles.map((xFile) => File(xFile.path)).toList();
+    } catch (e) {
+      AppLogger.error('Error picking multiple images', error: e);
+      return [];
+    }
+  }
+
+  /// Pick a video from camera or gallery
+  static Future<File?> pickVideo({
+    required ImageSource source,
+    Duration? maxDuration,
+  }) async {
+    try {
+      final XFile? pickedFile = await _picker.pickVideo(
+        source: source,
+        maxDuration: maxDuration,
+      );
+
+      if (pickedFile == null) {
+        AppLogger.info('No video selected');
+        return null;
+      }
+
+      return File(pickedFile.path);
+    } catch (e) {
+      AppLogger.error('Error picking video', error: e);
+      return null;
+    }
+  }
+
+  /// Get image dimensions
+  static Future<Size?> getImageDimensions(File imageFile) async {
+    try {
+      final Image image = Image.file(imageFile);
+      final Completer<Size> completer = Completer<Size>();
+
+      image.image.resolve(const ImageConfiguration()).addListener(
+        ImageStreamListener(
+          (ImageInfo info, bool _) {
+            completer.complete(
+              Size(
+                info.image.width.toDouble(),
+                info.image.height.toDouble(),
+              ),
+            );
+          },
+        ),
+      );
+
+      return await completer.future;
+    } catch (e) {
+      AppLogger.error('Error getting image dimensions', error: e);
+      return null;
+    }
+  }
+
+  /// Check if file is an image
+  static bool isImageFile(File file) {
+    final String path = file.path.toLowerCase();
+    return path.endsWith('.jpg') ||
+        path.endsWith('.jpeg') ||
+        path.endsWith('.png') ||
+        path.endsWith('.gif') ||
+        path.endsWith('.webp');
+  }
+
+  /// Check if file is a video
+  static bool isVideoFile(File file) {
+    final String path = file.path.toLowerCase();
+    return path.endsWith('.mp4') ||
+        path.endsWith('.mov') ||
+        path.endsWith('.avi') ||
+        path.endsWith('.wmv') ||
+        path.endsWith('.mkv');
+  }
+
+  /// Get file size in MB
+  static double getFileSizeInMB(File file) {
+    return file.lengthSync() / (1024 * 1024);
+  }
+
+  /// Show image picker modal
+  static Future<File?> showImagePickerModal(BuildContext context) async {
+    File? pickedFile;
+
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_camera),
+                title: const Text('Take a photo'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  pickedFile = await pickImage(source: ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Choose from gallery'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  pickedFile = await pickImage(source: ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    return pickedFile;
+  }
+}
+
+--- Content of date_formatter.dart in folder utils ---
+// lib/utils/date_formatter.dart
+import 'package:intl/intl.dart';
+
+class DateFormatter {
+  static String formatRelativeTime(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inDays > 7) {
+      return DateFormat('MMM d, y').format(date);
+    } else if (difference.inDays > 0) {
+      return '${difference.inDays}d ago';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes}m ago';
+    } else {
+      return 'Just now';
+    }
+  }
+
+  static String formatDuration(Duration duration) {
+    if (duration.inDays > 0) {
+      return '${duration.inDays}d ${duration.inHours.remainder(24)}h';
+    } else if (duration.inHours > 0) {
+      return '${duration.inHours}h ${duration.inMinutes.remainder(60)}m';
+    } else {
+      return '${duration.inMinutes}m';
+    }
+  }
+}
+
+
+
+--- Content of app_logger.dart in folder utils ---
+// lib/utils/app_logger.dart
+import 'package:flutter/foundation.dart';
+import 'dart:developer' as developer;
+
+class AppLogger {
+  static const String _defaultTag = 'APP';
+  static bool _enabled = true;
+
+  // Enable/disable logging
+  static void enable() => _enabled = true;
+  static void disable() => _enabled = false;
+
+  // Log levels
+  static void debug(
+    dynamic message, {
+    String? tag,
+    dynamic error,
+    StackTrace? stackTrace,
+  }) {
+    _log(
+      'DEBUG',
+      message,
+      tag: tag,
+      error: error,
+      stackTrace: stackTrace,
+      color: '\x1B[37m', // White
+    );
+  }
+
+  static void info(
+    dynamic message, {
+    String? tag,
+    dynamic error,
+    StackTrace? stackTrace,
+  }) {
+    _log(
+      'INFO',
+      message,
+      tag: tag,
+      error: error,
+      stackTrace: stackTrace,
+      color: '\x1B[34m', // Blue
+    );
+  }
+
+  static void warning(
+    dynamic message, {
+    String? tag,
+    dynamic error,
+    StackTrace? stackTrace,
+  }) {
+    _log(
+      'WARNING',
+      message,
+      tag: tag,
+      error: error,
+      stackTrace: stackTrace,
+      color: '\x1B[33m', // Yellow
+    );
+  }
+
+  static void error(
+    dynamic message, {
+    String? tag,
+    dynamic error,
+    StackTrace? stackTrace,
+  }) {
+    _log(
+      'ERROR',
+      message,
+      tag: tag,
+      error: error,
+      stackTrace: stackTrace,
+      color: '\x1B[31m', // Red
+    );
+  }
+
+  static void success(
+    dynamic message, {
+    String? tag,
+    dynamic error,
+    StackTrace? stackTrace,
+  }) {
+    _log(
+      'SUCCESS',
+      message,
+      tag: tag,
+      error: error,
+      stackTrace: stackTrace,
+      color: '\x1B[32m', // Green
+    );
+  }
+
+  // Main logging method
+  static void _log(
+    String level,
+    dynamic message, {
+    String? tag,
+    dynamic error,
+    StackTrace? stackTrace,
+    String color = '\x1B[37m', // Default: White
+  }) {
+    if (!_enabled) return;
+
+    final now = DateTime.now();
+    final timeString = '${now.hour.toString().padLeft(2, '0')}:'
+        '${now.minute.toString().padLeft(2, '0')}:'
+        '${now.second.toString().padLeft(2, '0')}.'
+        '${now.millisecond.toString().padLeft(3, '0')}';
+
+    final finalTag = tag ?? _defaultTag;
+    final reset = '\x1B[0m';
+    
+    // Build the log message
+    final buffer = StringBuffer()
+      ..write('$color[$timeString][$finalTag][$level] ')
+      ..write(message)
+      ..write(reset);
+
+    if (error != null) {
+      buffer
+        ..write('\n$color┌── Error: ')
+        ..write(error)
+        ..write(reset);
+    }
+
+    if (stackTrace != null) {
+      buffer
+        ..write('\n$color├── Stack trace:\n')
+        ..write(stackTrace)
+        ..write(reset);
+    }
+
+    // Use debugPrint in debug mode, developer.log in release mode
+    if (kDebugMode) {
+      debugPrint(buffer.toString());
+    } else {
+      developer.log(
+        buffer.toString(),
+        time: now,
+        name: finalTag,
+        level: _getLevelNumber(level),
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
+  // Helper method to get numeric log level
+  static int _getLevelNumber(String level) {
+    switch (level) {
+      case 'DEBUG':
+        return 500;
+      case 'INFO':
+        return 800;
+      case 'WARNING':
+        return 900;
+      case 'ERROR':
+        return 1000;
+      case 'SUCCESS':
+        return 800;
+      default:
+        return 800;
+    }
+  }
+
+  // Performance logging
+  static void logPerformance(
+    String operation,
+    Duration duration, {
+    String? tag,
+    Map<String, dynamic>? additionalInfo,
+  }) {
+    final buffer = StringBuffer()
+      ..write('Performance: $operation')
+      ..write(' (${duration.inMilliseconds}ms)');
+
+    if (additionalInfo != null) {
+      buffer.write('\nAdditional Info: $additionalInfo');
+    }
+
+    info(buffer.toString(), tag: tag ?? 'PERFORMANCE');
+  }
+
+  // Network logging
+  static void logNetwork(
+    String method,
+    String url, {
+    Map<String, dynamic>? headers,
+    dynamic body,
+    dynamic response,
+    Duration? duration,
+    String? tag,
+  }) {
+    final buffer = StringBuffer()
+      ..write('Network Request: $method $url');
+
+    if (headers != null) {
+      buffer.write('\nHeaders: $headers');
+    }
+
+    if (body != null) {
+      buffer.write('\nBody: $body');
+    }
+
+    if (response != null) {
+      buffer.write('\nResponse: $response');
+    }
+
+    if (duration != null) {
+      buffer.write('\nDuration: ${duration.inMilliseconds}ms');
+    }
+
+    info(buffer.toString(), tag: tag ?? 'NETWORK');
+  }
+
+  // State logging
+  static void logState(
+    String stateName,
+    dynamic oldState,
+    dynamic newState, {
+    String? tag,
+  }) {
+    final buffer = StringBuffer()
+      ..write('State Change: $stateName')
+      ..write('\nOld State: $oldState')
+      ..write('\nNew State: $newState');
+
+    debug(buffer.toString(), tag: tag ?? 'STATE');
+  }
+}
+
+// Example usage:
+/*
+void main() {
+  // Enable logging (enabled by default)
+  AppLogger.enable();
+
+  // Basic logging
+  AppLogger.debug('Debug message');
+  AppLogger.info('Info message');
+  AppLogger.warning('Warning message');
+  AppLogger.error('Error message');
+  AppLogger.success('Success message');
+
+  // Logging with tags
+  AppLogger.info('User logged in', tag: 'AUTH');
+
+  // Logging errors with stack traces
+  try {
+    throw Exception('Something went wrong');
+  } catch (e, stackTrace) {
+    AppLogger.error(
+      'Failed to process request',
+      tag: 'API',
+      error: e,
+      stackTrace: stackTrace,
+    );
+  }
+
+  // Performance logging
+  final stopwatch = Stopwatch()..start();
+  // ... perform operation
+  stopwatch.stop();
+  AppLogger.logPerformance(
+    'Load user data',
+    stopwatch.elapsed,
+    additionalInfo: {'userId': '123'},
+  );
+
+  // Network logging
+  AppLogger.logNetwork(
+    'GET',
+    'https://api.example.com/users',
+    headers: {'Authorization': 'Bearer token'},
+    response: {'status': 'success'},
+    duration: Duration(milliseconds: 200),
+  );
+
+  // State logging
+  AppLogger.logState(
+    'UserState',
+    {'isLoggedIn': false},
+    {'isLoggedIn': true},
+  );
+}
+*/
+
+--- Content of eco_action.dart in folder models ---
+import 'package:flutter/material.dart';
+
+@immutable
+class EcoAction {
+  final String id;
+  final String title;
+  final String description;
+  final int points;
+  final IconData icon;
+  final String category;
+  final DateTime createdAt;
+  final bool isVerified;
+  final double carbonOffset;
+  final List<String> requiredProof;
+  final Map<String, dynamic> additionalData;
+  final Color? color;
+  final String? imageUrl;
+  final int difficulty;
+
+  EcoAction({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.points,
+    required this.icon,
+    this.category = 'General',
+    DateTime? createdAt,
+    this.isVerified = false,
+    this.carbonOffset = 0.0,
+    this.requiredProof = const [],
+    this.additionalData = const {},
+    this.color,
+    this.imageUrl,
+    this.difficulty = 1,
+  }) : createdAt = createdAt ?? DateTime.now();
+
+  EcoAction copyWith({
+    String? id,
+    String? title,
+    String? description,
+    int? points,
+    IconData? icon,
+    String? category,
+    DateTime? createdAt,
+    bool? isVerified,
+    double? carbonOffset,
+    List<String>? requiredProof,
+    Map<String, dynamic>? additionalData,
+    Color? color,
+    String? imageUrl,
+    int? difficulty,
+  }) {
+    return EcoAction(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      points: points ?? this.points,
+      icon: icon ?? this.icon,
+      category: category ?? this.category,
+      createdAt: createdAt ?? this.createdAt,
+      isVerified: isVerified ?? this.isVerified,
+      carbonOffset: carbonOffset ?? this.carbonOffset,
+      requiredProof: requiredProof ?? this.requiredProof,
+      additionalData: additionalData ?? this.additionalData,
+      color: color ?? this.color,
+      imageUrl: imageUrl ?? this.imageUrl,
+      difficulty: difficulty ?? this.difficulty,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'title': title,
+    'description': description,
+    'points': points,
+    'iconCodePoint': icon.codePoint,
+    'category': category,
+    'createdAt': createdAt.toIso8601String(),
+    'isVerified': isVerified,
+    'carbonOffset': carbonOffset,
+    'requiredProof': requiredProof,
+    'additionalData': additionalData,
+    'difficulty': difficulty,
+  };
+
+  factory EcoAction.fromJson(Map<String, dynamic> json) => EcoAction(
+    id: json['id'],
+    title: json['title'],
+    description: json['description'],
+    points: json['points'],
+    icon: IconData(json['iconCodePoint'], fontFamily: 'MaterialIcons'),
+    category: json['category'],
+    createdAt: DateTime.parse(json['createdAt']),
+    isVerified: json['isVerified'],
+    carbonOffset: json['carbonOffset'],
+    requiredProof: List<String>.from(json['requiredProof']),
+    additionalData: json['additionalData'],
+    difficulty: json['difficulty'],
+  );
+}
+
+--- Content of post.dart in folder models ---
+// lib/models/post.dart
+class Post {
+  final String id;
+  final String userId;
+  final String userName;
+  final String userAvatar;
+  final String imageUrl;
+  final String description;
+  final String actionType;
+  final int points;
+  final int likes;
+  final int comments;
+  final DateTime createdAt;
+  final bool isLiked;
+
+  Post({
+    required this.id,
+    required this.userId,
+    required this.userName,
+    required this.userAvatar,
+    required this.imageUrl,
+    required this.description,
+    required this.actionType,
+    required this.points,
+    required this.likes,
+    required this.comments,
+    required this.createdAt,
+    this.isLiked = false,
+  });
+
+  factory Post.fromJson(Map<String, dynamic> json) {
+    final profile = json['profiles'] as Map<String, dynamic>;
+    return Post(
+      id: json['id'],
+      userId: json['user_id'],
+      userName: profile['name'] ?? 'Unknown',
+      userAvatar: profile['avatar_url'] ?? '',
+      imageUrl: json['image_url'],
+      description: json['description'],
+      actionType: json['action_type'],
+      points: json['points'],
+      likes: json['likes'],
+      comments: json['comments'],
+      createdAt: DateTime.parse(json['created_at']),
+      isLiked: json['is_liked'] ?? false,
+    );
+  }
+}
+
+--- Content of user.dart in folder models ---
+// lib/models/user.dart
+import 'package:flutter/material.dart';
+
+@immutable
+class User {
+  final String id;
+  final String name;
+  final String email;
+  final int points;
+  final String avatar;
+  final UserLevel level;
+  final List<String> achievements;
+  final Map<String, int> stats;
+  final UserPreferences preferences;
+  final DateTime joinDate;
+  final List<String> completedActions;
+  final List<String> redeemedRewards;
+  final double totalCarbonOffset;
+  final String? referralCode;
+  final List<String> friends;
+
+  const User({
+    required this.id,
+    required this.name,
+    required this.email,
+    required this.points,
+    required this.avatar,
+    required this.level,
+    this.achievements = const [],
+    this.stats = const {},
+    required this.preferences,
+    required this.joinDate,
+    this.completedActions = const [],
+    this.redeemedRewards = const [],
+    this.totalCarbonOffset = 0.0,
+    this.referralCode,
+    this.friends = const [],
+  });
+
+  bool get isNewUser => DateTime.now().difference(joinDate).inDays < 7;
+  int get totalAchievements => achievements.length;
+  int get completedActionsCount => completedActions.length;
+  bool get hasReferralCode => referralCode != null;
+
+  User copyWith({
+    String? id,
+    String? name,
+    String? email,
+    int? points,
+    String? avatar,
+    UserLevel? level,
+    List<String>? achievements,
+    Map<String, int>? stats,
+    UserPreferences? preferences,
+    DateTime? joinDate,
+    List<String>? completedActions,
+    List<String>? redeemedRewards,
+    double? totalCarbonOffset,
+    String? referralCode,
+    List<String>? friends,
+  }) {
+    return User(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      email: email ?? this.email,
+      points: points ?? this.points,
+      avatar: avatar ?? this.avatar,
+      level: level ?? this.level,
+      achievements: achievements ?? this.achievements,
+      stats: stats ?? this.stats,
+      preferences: preferences ?? this.preferences,
+      joinDate: joinDate ?? this.joinDate,
+      completedActions: completedActions ?? this.completedActions,
+      redeemedRewards: redeemedRewards ?? this.redeemedRewards,
+      totalCarbonOffset: totalCarbonOffset ?? this.totalCarbonOffset,
+      referralCode: referralCode ?? this.referralCode,
+      friends: friends ?? this.friends,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'email': email,
+    'points': points,
+    'avatar': avatar,
+    'level': level.toJson(),
+    'achievements': achievements,
+    'stats': stats,
+    'preferences': preferences.toJson(),
+    'joinDate': joinDate.toIso8601String(),
+    'completedActions': completedActions,
+    'redeemedRewards': redeemedRewards,
+    'totalCarbonOffset': totalCarbonOffset,
+    'referralCode': referralCode,
+    'friends': friends,
+  };
+
+  factory User.fromJson(Map<String, dynamic> json) => User(
+    id: json['id'],
+    name: json['name'],
+    email: json['email'],
+    points: json['points'],
+    avatar: json['avatar'],
+    level: UserLevel.fromJson(json['level']),
+    achievements: List<String>.from(json['achievements']),
+    stats: Map<String, int>.from(json['stats']),
+    preferences: UserPreferences.fromJson(json['preferences']),
+    joinDate: DateTime.parse(json['joinDate']),
+    completedActions: List<String>.from(json['completedActions']),
+    redeemedRewards: List<String>.from(json['redeemedRewards']),
+    totalCarbonOffset: json['totalCarbonOffset'],
+    referralCode: json['referralCode'],
+    friends: List<String>.from(json['friends']),
+  );
+}
+
+@immutable
+class UserLevel {
+  final int level;
+  final int currentXP;
+  final int requiredXP;
+  final String title;
+
+  const UserLevel({
+    required this.level,
+    required this.currentXP,
+    required this.requiredXP,
+    required this.title,
+  });
+
+  double get progress => currentXP / requiredXP;
+
+  Map<String, dynamic> toJson() => {
+    'level': level,
+    'currentXP': currentXP,
+    'requiredXP': requiredXP,
+    'title': title,
+  };
+
+  factory UserLevel.fromJson(Map<String, dynamic> json) => UserLevel(
+    level: json['level'],
+    currentXP: json['currentXP'],
+    requiredXP: json['requiredXP'],
+    title: json['title'],
+  );
+}
+
+@immutable
+class UserPreferences {
+  final bool darkMode;
+  final bool notifications;
+  final String language;
+  final List<String> interests;
+  final bool locationTracking;
+
+  const UserPreferences({
+    this.darkMode = false,
+    this.notifications = true,
+    this.language = 'en',
+    this.interests = const [],
+    this.locationTracking = false,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'darkMode': darkMode,
+    'notifications': notifications,
+    'language': language,
+    'interests': interests,
+    'locationTracking': locationTracking,
+  };
+
+  factory UserPreferences.fromJson(Map<String, dynamic> json) => UserPreferences(
+    darkMode: json['darkMode'],
+    notifications: json['notifications'],
+    language: json['language'],
+    interests: List<String>.from(json['interests']),
+    locationTracking: json['locationTracking'],
+  );
+}
+
+--- Content of achievement.dart in folder models ---
+// lib/models/achievement.dart
+import 'package:flutter/material.dart';
+
+@immutable
+class Achievement {
+  final String id;
+  final String title;
+  final String description;
+  final IconData icon;
+  final DateTime? unlockedAt;
+  final int progressRequired;
+  final int currentProgress;
+  final String category;
+  final List<String> rewards;
+  final Color? color;
+  final bool isLocked;
+
+  const Achievement({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.icon,
+    this.unlockedAt,
+    this.progressRequired = 1,
+    this.currentProgress = 0,
+    this.category = 'General',
+    this.rewards = const [],
+    this.color,
+    this.isLocked = true,
+  });
+
+  bool get isUnlocked => unlockedAt != null;
+  double get progressPercentage => (currentProgress / progressRequired).clamp(0.0, 1.0);
+
+  Achievement copyWith({
+    String? id,
+    String? title,
+    String? description,
+    IconData? icon,
+    DateTime? unlockedAt,
+    int? progressRequired,
+    int? currentProgress,
+    String? category,
+    List<String>? rewards,
+    Color? color,
+    bool? isLocked,
+  }) {
+    return Achievement(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      icon: icon ?? this.icon,
+      unlockedAt: unlockedAt ?? this.unlockedAt,
+      progressRequired: progressRequired ?? this.progressRequired,
+      currentProgress: currentProgress ?? this.currentProgress,
+      category: category ?? this.category,
+      rewards: rewards ?? this.rewards,
+      color: color ?? this.color,
+      isLocked: isLocked ?? this.isLocked,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'title': title,
+    'description': description,
+    'iconCodePoint': icon.codePoint,
+    'unlockedAt': unlockedAt?.toIso8601String(),
+    'progressRequired': progressRequired,
+    'currentProgress': currentProgress,
+    'category': category,
+    'rewards': rewards,
+    'isLocked': isLocked,
+  };
+
+  factory Achievement.fromJson(Map<String, dynamic> json) => Achievement(
+    id: json['id'],
+    title: json['title'],
+    description: json['description'],
+    icon: IconData(json['iconCodePoint'], fontFamily: 'MaterialIcons'),
+    unlockedAt: json['unlockedAt'] != null 
+        ? DateTime.parse(json['unlockedAt'])
+        : null,
+    progressRequired: json['progressRequired'],
+    currentProgress: json['currentProgress'],
+    category: json['category'],
+    rewards: List<String>.from(json['rewards']),
+    isLocked: json['isLocked'],
+  );
+}
+
+
+--- Content of reward.dart in folder models ---
+// lib/models/reward.dart
+import 'package:flutter/material.dart';
+
+@immutable
+class Reward {
+  final String id;
+  final String title;
+  final String description;
+  final int points;
+  final String image;
+  final String category;
+  final DateTime? expiryDate;
+  final bool isAvailable;
+  final int stockCount;
+  final List<String> termsAndConditions;
+  final Map<String, dynamic> metadata;
+  final String? brandName;
+  final String? brandLogo;
+  final double? originalPrice;
+  final double? discountedPrice;
+  final List<String>? redemptionInstructions;
+
+  const Reward({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.points,
+    required this.image,
+    this.category = 'General',
+    this.expiryDate,
+    this.isAvailable = true,
+    this.stockCount = -1, // -1 means unlimited
+    this.termsAndConditions = const [],
+    this.metadata = const {},
+    this.brandName,
+    this.brandLogo,
+    this.originalPrice,
+    this.discountedPrice,
+    this.redemptionInstructions,
+  });
+
+  bool get isExpired => expiryDate?.isBefore(DateTime.now()) ?? false;
+  bool get isInStock => stockCount == -1 || stockCount > 0;
+  bool get canBeRedeemed => isAvailable && !isExpired && isInStock;
+  double get savingsPercentage => originalPrice != null && discountedPrice != null
+      ? ((originalPrice! - discountedPrice!) / originalPrice! * 100)
+      : 0.0;
+
+  Reward copyWith({
+    String? id,
+    String? title,
+    String? description,
+    int? points,
+    String? image,
+    String? category,
+    DateTime? expiryDate,
+    bool? isAvailable,
+    int? stockCount,
+    List<String>? termsAndConditions,
+    Map<String, dynamic>? metadata,
+    String? brandName,
+    String? brandLogo,
+    double? originalPrice,
+    double? discountedPrice,
+    List<String>? redemptionInstructions,
+  }) {
+    return Reward(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      points: points ?? this.points,
+      image: image ?? this.image,
+      category: category ?? this.category,
+      expiryDate: expiryDate ?? this.expiryDate,
+      isAvailable: isAvailable ?? this.isAvailable,
+      stockCount: stockCount ?? this.stockCount,
+      termsAndConditions: termsAndConditions ?? this.termsAndConditions,
+      metadata: metadata ?? this.metadata,
+      brandName: brandName ?? this.brandName,
+      brandLogo: brandLogo ?? this.brandLogo,
+      originalPrice: originalPrice ?? this.originalPrice,
+      discountedPrice: discountedPrice ?? this.discountedPrice,
+      redemptionInstructions: redemptionInstructions ?? this.redemptionInstructions,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'title': title,
+    'description': description,
+    'points': points,
+    'image': image,
+    'category': category,
+    'expiryDate': expiryDate?.toIso8601String(),
+    'isAvailable': isAvailable,
+    'stockCount': stockCount,
+    'termsAndConditions': termsAndConditions,
+    'metadata': metadata,
+    'brandName': brandName,
+    'brandLogo': brandLogo,
+    'originalPrice': originalPrice,
+    'discountedPrice': discountedPrice,
+    'redemptionInstructions': redemptionInstructions,
+  };
+
+  factory Reward.fromJson(Map<String, dynamic> json) => Reward(
+    id: json['id'],
+    title: json['title'],
+    description: json['description'],
+    points: json['points'],
+    image: json['image'],
+    category: json['category'],
+    expiryDate: json['expiryDate'] != null 
+        ? DateTime.parse(json['expiryDate'])
+        : null,
+    isAvailable: json['isAvailable'],
+    stockCount: json['stockCount'],
+    termsAndConditions: List<String>.from(json['termsAndConditions']),
+    metadata: json['metadata'],
+    brandName: json['brandName'],
+    brandLogo: json['brandLogo'],
+    originalPrice: json['originalPrice'],
+    discountedPrice: json['discountedPrice'],
+    redemptionInstructions: json['redemptionInstructions'] != null
+        ? List<String>.from(json['redemptionInstructions'])
+        : null,
+  );
+}
+
+
+
+--- Content of app_state.dart in folder state ---
+// lib/state/app_state.dart
+import 'package:flutter/foundation.dart';
+import '../models/user.dart';
+import '../models/eco_action.dart';
+import '../models/achievement.dart';
+import '../models/reward.dart';
+
+// App State Management using ChangeNotifier
+class AppState extends ChangeNotifier {
+  static final AppState _instance = AppState._internal();
+
+  factory AppState() {
+    return _instance;
+  }
+
+  AppState._internal();
+
+  // User State
+  User? _currentUser;
+  bool _isLoading = false;
+  String? _error;
+
+  // Lists
+  List<EcoAction> _ecoActions = [];
+  List<Achievement> _achievements = [];
+  List<Reward> _rewards = [];
+
+  // Getters
+  User? get currentUser => _currentUser;
+  bool get isLoading => _isLoading;
+  String? get error => _error;
+  List<EcoAction> get ecoActions => _ecoActions;
+  List<Achievement> get achievements => _achievements;
+  List<Reward> get rewards => _rewards;
+  bool get isAuthenticated => _currentUser != null;
+
+  // User Methods
+  Future<void> setUser(User user) async {
+    try {
+      _setLoading(true);
+      _currentUser = user;
+      _error = null;
+      notifyListeners();
+    } catch (e) {
+      _setError(e.toString());
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  Future<void> clearUser() async {
+    try {
+      _setLoading(true);
+      _currentUser = null;
+      _error = null;
+      notifyListeners();
+    } catch (e) {
+      _setError(e.toString());
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Eco Actions Methods
+  Future<void> setEcoActions(List<EcoAction> actions) async {
+    try {
+      _setLoading(true);
+      _ecoActions = actions;
+      _error = null;
+      notifyListeners();
+    } catch (e) {
+      _setError(e.toString());
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  Future<void> addEcoAction(EcoAction action) async {
+    try {
+      _setLoading(true);
+      _ecoActions.add(action);
+      _error = null;
+      notifyListeners();
+    } catch (e) {
+      _setError(e.toString());
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Achievements Methods
+  Future<void> setAchievements(List<Achievement> achievements) async {
+    try {
+      _setLoading(true);
+      _achievements = achievements;
+      _error = null;
+      notifyListeners();
+    } catch (e) {
+      _setError(e.toString());
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  Future<void> unlockAchievement(Achievement achievement) async {
+    try {
+      _setLoading(true);
+      _achievements.add(achievement);
+      _error = null;
+      notifyListeners();
+    } catch (e) {
+      _setError(e.toString());
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Rewards Methods
+  Future<void> setRewards(List<Reward> rewards) async {
+    try {
+      _setLoading(true);
+      _rewards = rewards;
+      _error = null;
+      notifyListeners();
+    } catch (e) {
+      _setError(e.toString());
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  Future<void> redeemReward(Reward reward) async {
+    try {
+      _setLoading(true);
+      // Implement reward redemption logic
+      _error = null;
+      notifyListeners();
+    } catch (e) {
+      _setError(e.toString());
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Helper Methods
+  void _setLoading(bool loading) {
+    _isLoading = loading;
+    notifyListeners();
+  }
+
+  void _setError(String error) {
+    _error = error;
+    notifyListeners();
+  }
+
+  void clearError() {
+    _error = null;
+    notifyListeners();
+  }
+
+  // Points Management
+  int get totalPoints => _currentUser?.points ?? 0;
+
+  Future<void> addPoints(int points) async {
+    if (_currentUser != null) {
+      try {
+        _setLoading(true);
+        final updatedUser = User(
+          id: _currentUser!.id,
+          name: _currentUser!.name,
+          email: _currentUser!.email,
+          points: _currentUser!.points + points,
+          avatar: _currentUser!.avatar,
+          level: _currentUser!.level,
+          preferences: _currentUser!.preferences,
+          joinDate: _currentUser!.joinDate,
+        );
+        await setUser(updatedUser);
+      } catch (e) {
+        _setError(e.toString());
+      } finally {
+        _setLoading(false);
+      }
+    }
+  }
+
+  // State Reset
+  void resetState() {
+    _currentUser = null;
+    _ecoActions = [];
+    _achievements = [];
+    _rewards = [];
+    _isLoading = false;
+    _error = null;
+    notifyListeners();
+  }
+}
+
+// Example usage:
+/*
+void main() {
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => AppState(),
+      child: MyApp(),
+    ),
+  );
+}
+
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<AppState>(
+      builder: (context, appState, child) {
+        if (appState.isLoading) {
+          return CircularProgressIndicator();
+        }
+        
+        if (appState.error != null) {
+          return Text('Error: ${appState.error}');
+        }
+        
+        return MaterialApp(
+          home: appState.isAuthenticated 
+            ? HomeScreen() 
+            : LoginScreen(),
+        );
+      },
+    );
+  }
+}
+
+// In your widgets:
+final appState = Provider.of<AppState>(context);
+// or
+final appState = context.read<AppState>();
+
+// Update state
+await appState.setUser(newUser);
+await appState.addEcoAction(newAction);
+await appState.unlockAchievement(achievement);
+*/
+
+--- Content of preview_screen.dart in folder screens ---
+//lib/screens/preview_screen.dart
+
+import 'package:flutter/material.dart';
+import 'dart:io';
+import '../widgets/action_button.dart';
+import 'package:logging/logging.dart';
+
+class PreviewScreen extends StatelessWidget {
+  final File imageFile;
+  final List<File> fileList;
+  final Logger _logger = Logger('PreviewScreen');
+
+  PreviewScreen({
+    Key? key,
+    required this.imageFile,
+    required this.fileList,
+  }) : super(key: key);
+
+  // Implement image processing and eco-action validation
+  void processAndValidateImage() {
+    // Add image processing logic here
+    // Add eco-action validation logic here
+    _logger.info('Image processed and eco-action validated');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Image.file(
+              imageFile,
+              fit: BoxFit.cover,
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Preview',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    ActionButton(
+                      icon: Icons.close,
+                      onPressed: () => Navigator.pop(context),
+                      label: 'Discard',
+                    ),
+                    ActionButton(
+                      icon: Icons.check,
+                      onPressed: () {
+                        processAndValidateImage();
+                        Navigator.pop(context);
+                      },
+                      label: 'Submit',
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+
+--- Content of camera_screen.dart in folder screens ---
+// lib/screens/camera_screen.dart
+import 'package:flutter/material.dart';
+import 'package:camera/camera.dart';
+import 'dart:io';
+import 'preview_screen.dart';
+import 'package:logging/logging.dart';
+
+class CameraScreen extends StatefulWidget {
+  const CameraScreen({Key? key}) : super(key: key);
+
+  @override
+  State<CameraScreen> createState() => CameraScreenState();
+}
+
+class CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver {
+  CameraController? _controller;
+  bool _isCameraInitialized = false;
+  bool _isRearCameraSelected = false; // Front camera by default
+  double _currentZoomLevel = 1.0;
+  final Logger _logger = Logger('CameraScreen');
+  bool _isFlashOn = false;
+  final double _minZoomLevel = 1.0;
+  final double _maxZoomLevel = 5.0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _initializeCamera();
+  }
+
+  Future<void> _initializeCamera() async {
+    try {
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) {
+        _logger.warning('No cameras available');
+        return;
+      }
+
+      // Find front camera
+      final frontCamera = cameras.firstWhere(
+        (camera) => camera.lensDirection == CameraLensDirection.front,
+        orElse: () => cameras.first,
+      );
+
+      final CameraController cameraController = CameraController(
+        frontCamera,
+        ResolutionPreset.max,
+        enableAudio: false,
+      );
+
+      await cameraController.initialize();
+      await cameraController.setFlashMode(FlashMode.off);
+      
+      // Get min and max zoom levels
+      if (mounted) {
+        setState(() {
+          _controller = cameraController;
+          _isCameraInitialized = true;
+        });
+      }
+    } catch (e) {
+      _logger.severe('Error initializing camera: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final CameraController? cameraController = _controller;
+
+    if (cameraController == null || !cameraController.value.isInitialized) {
+      return;
+    }
+
+    if (state == AppLifecycleState.inactive) {
+      cameraController.dispose();
+    } else if (state == AppLifecycleState.resumed) {
+      _initializeCamera();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            _buildCameraPreview(),
+            _buildOverlayControls(),
+            _buildCameraControls(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCameraPreview() {
+    if (!_isCameraInitialized || _controller == null) {
+      return const Center(
+        child: CircularProgressIndicator(
+          color: Colors.white,
+        ),
+      );
+    }
+
+    return CameraPreview(_controller!);
+  }
+
+  Widget _buildOverlayControls() {
+    return Positioned(
+      top: 16,
+      left: 16,
+      right: 16,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(
+            icon: Icon(
+              _isFlashOn ? Icons.flash_on : Icons.flash_off,
+              color: Colors.white,
+              size: 28,
+            ),
+            onPressed: () async {
+              if (_controller == null) return;
+              setState(() => _isFlashOn = !_isFlashOn);
+              await _controller!.setFlashMode(
+                _isFlashOn ? FlashMode.torch : FlashMode.off,
+              );
+            },
+          ),
+          IconButton(
+            icon: Icon(
+              _isRearCameraSelected ? Icons.camera_front : Icons.camera_rear,
+              color: Colors.white,
+              size: 28,
+            ),
+            onPressed: () async {
+              setState(() => _isRearCameraSelected = !_isRearCameraSelected);
+              await _initializeCamera();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCameraControls() {
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: Container(
+        height: 120,
+        decoration: const BoxDecoration(
+          color: Colors.black87,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            IconButton(
+              icon: const Icon(
+                Icons.photo_library,
+                color: Colors.white,
+                size: 32,
+              ),
+              onPressed: () {
+                // Implement gallery picker
+              },
+            ),
+            GestureDetector(
+              onTap: _takePicture,
+              child: Container(
+                height: 80,
+                width: 80,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 4),
+                ),
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  margin: const EdgeInsets.all(8),
+                ),
+              ),
+            ),
+            const SizedBox(width: 64), // Placeholder for symmetry
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _takePicture() async {
+    final CameraController? cameraController = _controller;
+    if (cameraController == null || !cameraController.value.isInitialized) {
+      _showErrorDialog('Error', 'Camera is not ready');
+      return;
+    }
+
+    if (cameraController.value.isTakingPicture) {
+      return;
+    }
+
+    try {
+      final XFile photo = await cameraController.takePicture();
+      if (!mounted) return;
+
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => PreviewScreen(
+            imageFile: File(photo.path),
+            fileList: const [],
+          ),
+        ),
+      );
+    } catch (e) {
+      _logger.severe('Error taking picture: $e');
+      _showErrorDialog('Camera Error', 'Failed to capture image');
+    }
+  }
+
+  void _showErrorDialog(String title, String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+--- Content of profile_screen.dart in folder screens ---
+// lib/screens/profile_screen.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import '../widgets/achievement_card.dart';
+import '../models/achievement.dart';
+import '../widgets/animated_progress_bar.dart';
+import '../widgets/post_card.dart';
+import '../models/post.dart';
+
+class ProfileScreen extends StatefulWidget {
+  const ProfileScreen({Key? key}) : super(key: key);
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    await Future.delayed(const Duration(seconds: 2));
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: RefreshIndicator(
+        onRefresh: _loadData,
+        child: CustomScrollView(
+          slivers: [
+            _buildAppBar(context),
+            SliverToBoxAdapter(
+              child: Column(
+                children: [
+                  _buildProfileHeader(context),
+                  const SizedBox(height: 16),
+                  _buildLevelProgress(context),
+                  const SizedBox(height: 24),
+                  _buildTabBar(context),
+                ],
+              ),
+            ),
+            SliverFillRemaining(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildAchievementsTab(),
+                  _buildActivityTab(),
+                  _buildPostsTab(),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAppBar(BuildContext context) {
+    return SliverAppBar(
+      floating: true,
+      pinned: true,
+      expandedHeight: 60,
+      backgroundColor: Theme.of(context).colorScheme.primary,
+      centerTitle: true,
+      flexibleSpace: FlexibleSpaceBar(
+        title: const Text(
+          'Profile',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold
+          ),
+        ),
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(
+            Icons.settings,
+            color: Colors.white,
+          ),
+          onPressed: () {
+            // Implement settings
+          },
+        ),
+        IconButton(
+          icon: const Icon(
+            Icons.edit,
+            color: Colors.white,
+          ),
+          onPressed: () {
+            // Implement profile editing
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProfileHeader(BuildContext context) {
+    if (_isLoading) {
+      return _buildShimmerLoading();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        children: [
+          Stack(
+            alignment: Alignment.bottomRight,
+            children: [
+              Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.primary,
+                    width: 4,
+                  ),
+                ),
+                child: ClipOval(
+                  child: Image.asset(
+                    'assets/images/profile_picture.jpg',
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.camera_alt,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+            ],
+          ).animate().scale(),
+          const SizedBox(height: 16),
+          Text(
+            'John Doe',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ).animate().fadeIn(),
+          const SizedBox(height: 4),
+          Text(
+            'Eco Warrior Level 5',
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+          ).animate().fadeIn(),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildStatItem(context, '1.5K', 'Points'),
+              _buildStatDivider(),
+              _buildStatItem(context, '23', 'Actions'),
+              _buildStatDivider(),
+              _buildStatItem(context, '12', 'Rewards'),
+            ],
+          ).animate().fadeIn(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem(BuildContext context, String value, String label) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatDivider() {
+    return Container(
+      height: 24,
+      width: 1,
+      color: Colors.grey.withAlpha(77),
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+    );
+  }
+
+  Widget _buildLevelProgress(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Level 5',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              Text(
+                '500/1000 XP',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          AnimatedProgressBar(
+            progress: 0.5,
+            backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+            foregroundColor: Theme.of(context).colorScheme.primary,
+          ),
+        ],
+      ),
+    ).animate().fadeIn();
+  }
+
+  Widget _buildTabBar(BuildContext context) {
+    return TabBar(
+      controller: _tabController,
+      tabs: const [
+        Tab(text: 'Achievements'),
+        Tab(text: 'Activity'),
+        Tab(text: 'Posts'),
+      ],
+      indicatorColor: Theme.of(context).colorScheme.primary,
+      labelColor: Theme.of(context).colorScheme.primary,
+      unselectedLabelColor: Theme.of(context).colorScheme.onSurface,
+    );
+  }
+
+  Widget _buildAchievementsTab() {
+    if (_isLoading) {
+      return _buildShimmerLoading();
+    }
+
+    final achievements = [
+      Achievement(
+        id: '1',
+        title: 'Tree Hugger',
+        description: 'Plant your first tree',
+        icon: Icons.park,
+        isLocked: false,
+      ),
+      Achievement(
+        id: '2',
+        title: 'Waste Warrior',
+        description: 'Recycle 100 items',
+        icon: Icons.recycling,
+        progressRequired: 100,
+        currentProgress: 75,
+      ),
+    ];
+
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: achievements.map((achievement) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: AchievementCard(
+            achievement: achievement,
+          ).animate().fadeIn(),
+        )).toList(),
+      ),
+    );
+  }
+
+  Widget _buildActivityTab() {
+    if (_isLoading) {
+      return _buildShimmerLoading();
+    }
+
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: List.generate(10, (index) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Card(
+            child: ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.eco,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+              title: const Text('Planted a tree'),
+              subtitle: const Text('2 days ago'),
+              trailing: Text(
+                '+100 pts',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ).animate().fadeIn(delay: Duration(milliseconds: 100 * index)),
+        )).toList(),
+      ),
+    );
+  }
+
+  Widget _buildPostsTab() {
+    if (_isLoading) {
+      return _buildShimmerLoading();
+    }
+
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: _getDummyPosts().map((post) => Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: PostCard(
+            post: post,
+            onLike: () {},
+            onComment: () {},
+            onShare: () {},
+          ).animate().fadeIn(),
+        )).toList(),
+      ),
+    );
+  }
+
+  List<Post> _getDummyPosts() {
+    return [
+      Post(
+        id: '1',
+        userId: 'user123',
+        userName: 'John Doe',
+        userAvatar: 'assets/images/profile_picture.jpg',
+        imageUrl: 'assets/images/post1.jpg',
+        description: 'Just planted my first tree! 🌳 #SaveTheEarth',
+        actionType: 'Plant a Tree',
+        points: 100,
+        likes: 24,
+        comments: 5,
+        createdAt: DateTime.now().subtract(const Duration(days: 2)),
+        isLiked: false,
+      ),
+      Post(
+        id: '2',
+        userId: 'user123',
+        userName: 'John Doe',
+        userAvatar: 'assets/images/profile_picture.jpg',
+        imageUrl: 'assets/images/post2.jpg',
+        description: 'Recycled all my electronics today! ♻️ #Sustainability',
+        actionType: 'Recycle Electronics',
+        points: 50,
+        likes: 15,
+        comments: 3,
+        createdAt: DateTime.now().subtract(const Duration(days: 5)),
+        isLiked: true,
+      ),
+    ];
+  }
+
+  Widget _buildShimmerLoading() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 200,
+            height: 24,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            width: 150,
+            height: 16,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+        ],
+      ),
+    ).animate(onPlay: (controller) => controller.repeat())
+        .shimmer(duration: const Duration(seconds: 1));
+  }
+}
+
+--- Content of social_feed_screen.dart in folder screens ---
+// lib/screens/social_feed_screen.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import '../widgets/post_card.dart';
+import '../widgets/comments_sheet.dart';
+import '../models/post.dart';
+import '../services/database_service.dart';
+import 'package:timeago/timeago.dart' as timeago;
+
+class SocialFeedScreen extends StatefulWidget {
+  const SocialFeedScreen({Key? key}) : super(key: key);
+
+  @override
+  State<SocialFeedScreen> createState() => _SocialFeedScreenState();
+}
+
+class _SocialFeedScreenState extends State<SocialFeedScreen> {
+  final _scrollController = ScrollController();
+  final _databaseService = DatabaseService();
+  bool _isLoading = false;
+  bool _isGridView = false;
+  String _selectedFilter = 'All';
+  List<Post> _posts = [];
+  int _currentPage = 0;
+  static const int _postsPerPage = 10;
+
+  final List<String> _filters = [
+    'All',
+    'Trending',
+    'Following',
+    'Nearby',
+    'Tree Planting',
+    'Recycling',
+    'Clean Energy',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPosts();
+    _scrollController.addListener(_onScroll);
+  }
+
+  Future<void> _loadPosts() async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+
+    try {
+      final posts = await _databaseService.getPosts(
+        limit: _postsPerPage,
+        offset: _currentPage * _postsPerPage,
+      );
+      
+      setState(() {
+        if (_currentPage == 0) {
+          _posts = posts;
+        } else {
+          _posts.addAll(posts);
+        }
+        _isLoading = false;
+        _currentPage++;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading posts: $e')),
+      );
+    }
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      _loadPosts();
+    }
+  }
+
+  Future<void> _refreshPosts() async {
+    _currentPage = 0;
+    await _loadPosts();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: RefreshIndicator(
+        onRefresh: _refreshPosts,
+        child: CustomScrollView(
+          controller: _scrollController,
+          slivers: [
+            _buildAppBar(context),
+            _buildFilters(),
+            _buildToggleView(),
+            _isGridView ? _buildGridView() : _buildListView(),
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          // Navigate to create post screen
+        },
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        child: const Icon(Icons.add_a_photo, color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _buildAppBar(BuildContext context) {
+    return SliverAppBar(
+      expandedHeight: 60,
+      floating: false,
+      pinned: true,
+      stretch: true,
+      backgroundColor: Theme.of(context).colorScheme.primary,
+      flexibleSpace: FlexibleSpaceBar(
+        title: const Text(
+          'Community Feed',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        background: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Theme.of(context).colorScheme.primary,
+                Theme.of(context).colorScheme.primary.withAlpha(178),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.search, color: Colors.white),
+          onPressed: () {
+            // Implement search
+          },
+        ),
+        IconButton(
+          icon: Icon(
+            _isGridView ? Icons.view_agenda : Icons.grid_view,
+            color: Colors.white,
+          ),
+          onPressed: () {
+            setState(() {
+              _isGridView = !_isGridView;
+            });
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFilters() {
+    return SliverToBoxAdapter(
+      child: Container(
+        height: 50,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          itemCount: _filters.length,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          itemBuilder: (context, index) {
+            final filter = _filters[index];
+            final isSelected = _selectedFilter == filter;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: FilterChip(
+                selected: isSelected,
+                label: Text(filter),
+                onSelected: (selected) {
+                  setState(() {
+                    _selectedFilter = filter;
+                    _refreshPosts();
+                  });
+                },
+                backgroundColor: isSelected
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.surface,
+                labelStyle: TextStyle(
+                  color: isSelected ? Colors.white : null,
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildToggleView() {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Recent Posts',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            Row(
+              children: [
+                Icon(
+                  Icons.trending_up,
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 20,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '${_posts.length} posts',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGridView() {
+    if (_posts.isEmpty) {
+      return SliverFillRemaining(
+        child: Center(
+          child: _isLoading
+              ? const CircularProgressIndicator()
+              : const Text('No posts yet'),
+        ),
+      );
+    }
+
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      sliver: SliverMasonryGrid.count(
+        crossAxisCount: 2,
+        mainAxisSpacing: 16,
+        crossAxisSpacing: 16,
+        itemBuilder: (context, index) {
+          if (index >= _posts.length) {
+            return _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : const SizedBox();
+          }
+
+          final post = _posts[index];
+          return GestureDetector(
+            onTap: () => _showPostDetails(post),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AspectRatio(
+                    aspectRatio: index.isEven ? 1 : 0.8,
+                    child: Image.network(
+                      post.imageUrl,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 12,
+                              backgroundImage: NetworkImage(post.userAvatar),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                post.userName,
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          post.description,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.favorite,
+                              size: 16,
+                              color: post.isLiked ? Colors.red : Colors.grey,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${post.likes}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            const SizedBox(width: 16),
+                            const Icon(
+                              Icons.comment_outlined,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${post.comments}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ).animate().fadeIn(delay: Duration(milliseconds: 100 * index));
+        },
+        childCount: _posts.length + (_isLoading ? 1 : 0),
+      ),
+    );
+  }
+
+  Widget _buildListView() {
+    if (_posts.isEmpty) {
+      return SliverFillRemaining(
+        child: Center(
+          child: _isLoading
+              ? const CircularProgressIndicator()
+              : const Text('No posts yet'),
+        ),
+      );
+    }
+
+    return SliverPadding(
+      padding: const EdgeInsets.all(16),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            if (index >= _posts.length) {
+              return _isLoading
+                  ? const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: CircularProgressIndicator(),
+                      ),
+                    )
+                  : null;
+            }
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: PostCard(
+                post: _posts[index],
+                onLike: () => _likePost(_posts[index].id),
+                onComment: () => _showComments(_posts[index]),
+                onShare: () => _sharePost(_posts[index]),
+              ).animate().fadeIn().slideX(),
+            );
+          },
+          childCount: _posts.length + (_isLoading ? 1 : 0),
+        ),
+      ),
+    );
+  }
+
+  void _showPostDetails(Post post) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.9,
+        minChildSize: 0.5,
+        maxChildSize: 0.9,
+        builder: (context, scrollController) {
+          return Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).scaffoldBackgroundColor,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              children: [
+                Expanded(
+                  child: CustomScrollView(
+                    controller: scrollController,
+                    slivers: [
+                      SliverAppBar(
+                        pinned: true,
+                        title: Text(post.userName),
+                        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+                      ),
+                      SliverToBoxAdapter(
+                        child: PostCard(
+                          post: post,
+                          onLike: () => _likePost(post.id),
+                          onComment: () => _showComments(post),
+                          onShare: () => _sharePost(post),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _likePost(String postId) async {
+    try {
+      await _databaseService.likePost(postId);
+      _refreshPosts();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error liking post: $e')),
+      );
+    }
+  }
+
+  void _showComments(Post post) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => CommentsSheet(post: post),
+    );
+  }
+
+  Future<void> _sharePost(Post post) async {
+    // Implement share functionality
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+}
+
+--- Content of rewards_screen.dart in folder screens ---
+// lib/screens/rewards_screen.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import '../widgets/reward_card.dart';
+import '../models/reward.dart';
+import '../widgets/animated_progress_bar.dart';
+
+class RewardsScreen extends StatefulWidget {
+  const RewardsScreen({Key? key}) : super(key: key);
+
+  @override
+  State<RewardsScreen> createState() => _RewardsScreenState();
+}
+
+class _RewardsScreenState extends State<RewardsScreen> {
+  bool _isLoading = true;
+  String _selectedCategory = 'All';
+  final List<String> _categories = const [
+    'All',
+    'Eco Products',
+    'Vouchers',
+    'Experiences',
+    'Donations'
+  ];
+
+  final List<Reward> _rewards = [  // Remove const from here
+    Reward(
+      id: '1',
+      title: 'Bamboo Water Bottle',
+      description: 'Sustainable bamboo water bottle with stainless steel interior. 500ml capacity.',
+      points: 500,
+      image: 'assets/images/water_bottle.jpg',
+      category: 'Eco Products',
+      brandName: 'EcoLife',
+      originalPrice: 25.99,
+      discountedPrice: 19.99,
+      stockCount: 50,
+      termsAndConditions: ['Valid for 3 months', 'One redemption per user'],
+      redemptionInstructions: ['Show QR code at store', 'Present ID for verification'],
+    ),
+    Reward(
+      id: '2',
+      title: 'Organic Cotton T-shirt',
+      description: 'Comfortable t-shirt made from 100% organic cotton.',
+      points: 750,
+      image: 'assets/images/tshirt.jpg',
+      category: 'Eco Products',
+      brandName: 'GreenGear',
+      originalPrice: 45.99,
+      discountedPrice: 35.99,
+      stockCount: 30,
+      termsAndConditions: ['Available in S, M, L sizes', 'Color may vary'],
+      redemptionInstructions: ['Choose size at checkout', 'Allow 5-7 days for delivery'],
+    ),
+    Reward(
+      id: '3',
+      title: 'Solar Power Bank',
+      description: '10000mAh solar-powered power bank with dual USB ports.',
+      points: 1000,
+      image: 'assets/images/power_bank.jpg',
+      category: 'Eco Products',
+      brandName: 'EcoCharge',
+      originalPrice: 59.99,
+      discountedPrice: 49.99,
+      stockCount: 25,
+      termsAndConditions: ['1 year warranty', 'International shipping available'],
+      redemptionInstructions: ['Redeem online', 'Enter shipping details'],
+    ),
+    Reward(
+      id: '4',
+      title: 'Local Farm Voucher',
+      description: '\$50 voucher for your local organic farm market.',
+      points: 400,
+      image: 'assets/images/farm_voucher.jpg',
+      category: 'Vouchers',
+      brandName: 'Local Farms Co-op',
+      originalPrice: 50.00,
+      discountedPrice: 50.00,
+      termsAndConditions: ['Valid at participating farms only', 'No cash value'],
+      redemptionInstructions: ['Show digital voucher at checkout'],
+    ),
+    Reward(
+      id: '5',
+      title: 'Electric Bike Rental',
+      description: '2-hour electric bike rental for eco-friendly transportation.',
+      points: 300,
+      image: 'assets/images/bike_rental.jpg',
+      category: 'Experiences',
+      brandName: 'Green Wheels',
+      originalPrice: 30.00,
+      discountedPrice: 25.00,
+      termsAndConditions: ['Helmet included', 'Valid ID required', 'Age 18+ only'],
+      redemptionInstructions: ['Book time slot in advance', 'Present ID at location'],
+    ),
+    Reward(
+      id: '6',
+      title: 'Reusable Shopping Set',
+      description: 'Complete set of reusable shopping bags and produce nets.',
+      points: 600,
+      image: 'assets/images/shopping_set.jpg',
+      category: 'Eco Products',
+      brandName: 'Zero Waste Gear',
+      originalPrice: 35.99,
+      discountedPrice: 29.99,
+      stockCount: 40,
+      termsAndConditions: ['Set includes 5 bags', 'Machine washable'],
+      redemptionInstructions: ['Redeem at partner stores', 'Show redemption code'],
+    ),
+    Reward(
+      id: '7',
+      title: 'Tree Planting Kit',
+      description: 'Complete kit with seeds, soil, and tools to plant your own tree.',
+      points: 450,
+      image: 'assets/images/planting_kit.jpg',
+      category: 'Eco Products',
+      brandName: 'GreenThumb',
+      originalPrice: 40.00,
+      discountedPrice: 32.99,
+      stockCount: 35,
+      termsAndConditions: ['Includes care guide', 'Seasonal varieties may vary'],
+      redemptionInstructions: ['Collect from local garden center'],
+    ),
+    Reward(
+      id: '8',
+      title: 'Eco Workshop Pass',
+      description: 'Access to a sustainable living workshop in your area.',
+      points: 800,
+      image: 'assets/images/workshop.jpg',
+      category: 'Experiences',
+      brandName: 'EcoLearn',
+      originalPrice: 75.00,
+      discountedPrice: 65.00,
+      termsAndConditions: ['Advanced booking required', 'Subject to availability'],
+      redemptionInstructions: ['Book online using code', 'Attend in person'],
+    ),
+    Reward(
+      id: '9',
+      title: 'Wildlife Protection Donation',
+      description: 'Donate to protect endangered species in your region.',
+      points: 500,
+      image: 'assets/images/wildlife.jpg',
+      category: 'Donations',
+      brandName: 'Wildlife Foundation',
+      termsAndConditions: ['100% of points go to conservation', 'Tax deductible'],
+      redemptionInstructions: ['Choose conservation project', 'Receive certificate'],
+    ),
+    Reward(
+      id: '10',
+      title: 'Eco-Friendly Cafe Voucher',
+      description: '\$25 voucher for sustainable coffee shop.',
+      points: 250,
+      image: 'assets/images/cafe_voucher.jpg',
+      category: 'Vouchers',
+      brandName: 'Green Bean Cafe',
+      originalPrice: 25.00,
+      discountedPrice: 25.00,
+      termsAndConditions: ['Valid at all locations', 'No minimum purchase'],
+      redemptionInstructions: ['Show QR code at payment'],
+    ),
+];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRewards();
+  }
+
+  Future<void> _loadRewards() async {
+    await Future.delayed(const Duration(seconds: 2));
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: RefreshIndicator(
+        onRefresh: _loadRewards,
+        child: CustomScrollView(
+          slivers: [
+            _buildAppBar(context),
+            SliverToBoxAdapter(
+              child: Column(
+                children: [
+                  _buildPointsCard(context),
+                  _buildCategoryFilter(context),
+                ],
+              ),
+            ),
+            _buildRewardsList(context),
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          // Implement reward history
+        },
+        icon: const Icon(Icons.history),
+        label: const Text('History'),
+      ).animate().scale(delay: const Duration(milliseconds: 500)),
+    );
+  }
+
+  Widget _buildAppBar(BuildContext context) {
+    return SliverAppBar(
+      expandedHeight: 60,
+      floating: false,
+      pinned: true,
+      stretch: true,
+      backgroundColor: Theme.of(context).colorScheme.primary,
+      flexibleSpace: FlexibleSpaceBar(
+        title: const Text(
+          'Rewards',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        background: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Theme.of(context).colorScheme.primary,
+                Theme.of(context).colorScheme.primary.withAlpha(178),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(
+            Icons.filter_list,
+            color: Colors.white,
+          ),
+          onPressed: () {
+            // Implement filtering
+          },
+        ),
+        IconButton(
+          icon: const Icon(
+            Icons.search,
+            color: Colors.white,
+          ),
+          onPressed: () {
+            // Implement search
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPointsCard(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.all(16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Available Points',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '1,500',
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.stars,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 32,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            AnimatedProgressBar(
+              progress: 0.7,
+              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+              foregroundColor: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '500 more points until next tier',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+    ).animate().fadeIn().slideY(begin: 0.2);
+  }
+
+  Widget _buildCategoryFilter(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: _categories.map((category) {
+          final isSelected = _selectedCategory == category;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: FilterChip(
+              selected: isSelected,
+              label: Text(category),
+              onSelected: (selected) {
+                setState(() {
+                  _selectedCategory = category;
+                });
+              },
+              backgroundColor: isSelected
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(context).colorScheme.surface,
+              labelStyle: TextStyle(
+                color: isSelected ? Colors.white : null,
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildRewardsList(BuildContext context) {
+    if (_isLoading) {
+      return SliverToBoxAdapter(child: _buildShimmerLoading());
+    }
+
+    final filteredRewards = _selectedCategory == 'All'
+        ? _rewards
+        : _rewards.where((r) => r.category == _selectedCategory).toList();
+
+    return SliverPadding(
+      padding: const EdgeInsets.all(16),
+      sliver: SliverGrid(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          childAspectRatio: 0.75,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+        ),
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            final reward = filteredRewards[index];
+            return RewardCard(
+              reward: reward,
+              onTap: () => _showRewardDetails(context, reward),
+            ).animate().fadeIn(delay: Duration(milliseconds: 100 * index));
+          },
+          childCount: filteredRewards.length,
+        ),
+      ),
+    );
+  }
+
+  void _showRewardDetails(BuildContext context, Reward reward) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _RewardDetailsSheet(reward: reward),
+    );
+  }
+
+  Widget _buildShimmerLoading() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 200,
+            height: 24,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            width: 150,
+            height: 16,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+        ],
+      ),
+    ).animate(onPlay: (controller) => controller.repeat())
+        .shimmer(duration: const Duration(seconds: 1));
+  }
+}
+
+class _RewardDetailsSheet extends StatelessWidget {
+  final Reward reward;
+
+  const _RewardDetailsSheet({
+    Key? key,
+    required this.reward,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.9,
+      minChildSize: 0.5,
+      maxChildSize: 0.9,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: ListView(
+            controller: scrollController,
+            padding: const EdgeInsets.all(16),
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.asset(
+                  reward.image,
+                  height: 200,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      reward.title,
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.stars,
+                          size: 16,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${reward.points} points',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              if (reward.brandName != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'By ${reward.brandName}',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+              Text(
+                reward.description,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 24),
+              if (reward.originalPrice != null) ...[
+                Row(
+                  children: [
+                    Text(
+                      '\$${reward.discountedPrice?.toStringAsFixed(2)}',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '\$${reward.originalPrice?.toStringAsFixed(2)}',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        decoration: TextDecoration.lineThrough,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+              ],
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Confirm Redemption'),
+                      content: Text(
+                        'Are you sure you want to redeem ${reward.title} for ${reward.points} points?'
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Cancel'),
+                        ),
+                        FilledButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Successfully redeemed ${reward.title}!'),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          },
+                          child: const Text('Confirm'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+                child: const Text('Redeem Now'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+--- Content of main_screen.dart in folder screens ---
+// lib/screens/main_screen.dart
+import 'package:flutter/material.dart';
+import 'home_screen.dart';
+import 'camera_screen.dart';
+import 'profile_screen.dart';
+import 'rewards_screen.dart';
+import 'social_feed_screen.dart';  // Add this import
+
+class MainScreen extends StatefulWidget {
+  const MainScreen({Key? key}) : super(key: key);
+
+  @override
+  State<MainScreen> createState() => _MainScreenState();
+}
+
+class _MainScreenState extends State<MainScreen> {
+  int _currentIndex = 0;
+  
+  final List<Widget> _screens = [
+    const HomeScreen(),
+    const SocialFeedScreen(),  // Add the social feed screen
+    const CameraScreen(),
+    const ProfileScreen(),
+    const RewardsScreen(),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: IndexedStack(
+        index: _currentIndex,
+        children: _screens,
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
+        currentIndex: _currentIndex,
+        onTap: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: 'Home',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.feed),  // Add social feed icon
+            label: 'Feed',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.camera_alt),
+            label: 'Camera',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person),
+            label: 'Profile',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.card_giftcard),
+            label: 'Rewards',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+--- Content of home_screen.dart in folder screens ---
+// lib/screens/home_screen.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import '../widgets/eco_action_card.dart';
+import '../widgets/leaderboard_card.dart';
+import '../models/eco_action.dart';
+import '../models/user.dart';
+import '../widgets/animated_progress_bar.dart';
+import '../widgets/challenge_card.dart';
+import '../widgets/stats_card.dart';
+import 'package:intl/intl.dart';
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({Key? key}) : super(key: key);
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+  late TabController _leaderboardTabController;
+  bool _isLoading = true;
+  late ScrollController _scrollController;
+  double _scrollOffset = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _leaderboardTabController = TabController(length: 2, vsync: this);
+    _scrollController = ScrollController()
+      ..addListener(() {
+        setState(() {
+          _scrollOffset = _scrollController.offset;
+        });
+      });
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    await Future.delayed(const Duration(seconds: 2));
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _leaderboardTabController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: RefreshIndicator(
+        onRefresh: _loadData,
+        child: CustomScrollView(
+          controller: _scrollController,
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            _buildAppBar(context),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildWelcomeSection(),
+                    const SizedBox(height: 16),
+                    _buildCompactPointsDisplay(),
+                    const SizedBox(height: 16),
+                    _buildWeeklyChallenges(),
+                    const SizedBox(height: 24),
+                    _buildEcoActionsList(),
+                    const SizedBox(height: 24),
+                    _buildImpactStats(context),
+                    const SizedBox(height: 24),
+                    _buildLeaderboardSection(),
+                  ].animate(interval: const Duration(milliseconds: 100))
+                    .fadeIn()
+                    .slideX(),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAppBar(BuildContext context) {
+    return SliverAppBar(
+      expandedHeight: 60,
+      floating: false,
+      pinned: true,
+      stretch: true,
+      backgroundColor: Theme.of(context).colorScheme.primary,
+      flexibleSpace: FlexibleSpaceBar(
+        title: const Text(
+          'ReLeaf',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        background: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Theme.of(context).colorScheme.primary,
+                Theme.of(context).colorScheme.primary.withAlpha(178),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+          onPressed: () {},
+        ),
+        IconButton(
+          icon: const Icon(Icons.search, color: Colors.white),
+          onPressed: () {},
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWelcomeSection() {
+    if (_isLoading) return _buildShimmerLoading();
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Welcome back, John!',
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
+        Text(
+          DateFormat('EEEE, MMMM d').format(DateTime.now()),
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCompactPointsDisplay() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Icon(
+              Icons.stars,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '1,500 Points',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              '500 until next level',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWeeklyChallenges() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Weekly Challenges',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 12),
+        ChallengeCard(
+          title: 'Plant Trees Challenge',
+          description: 'Plant 3 trees this week',
+          progress: 0.33,
+          daysLeft: 4,
+          reward: '500 points',
+          onTap: () {},
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEcoActionsList() {
+    final actions = [
+      EcoAction(
+        id: '1',
+        title: 'Plant a Tree',
+        description: 'Plant a tree in your local community',
+        points: 100,
+        icon: Icons.nature,
+        category: 'Planting',
+      ),
+      EcoAction(
+        id: '2',
+        title: 'Recycle Electronics',
+        description: 'Properly dispose of old electronics',
+        points: 50,
+        icon: Icons.phone_android,
+        category: 'Recycling',
+      ),
+      EcoAction(
+        id: '3',
+        title: 'Use Public Transport',
+        description: 'Commute using public transportation',
+        points: 30,
+        icon: Icons.directions_bus,
+        category: 'Transportation',
+      ),
+    ];
+
+    return Container(
+      margin: EdgeInsets.zero,
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'This Week\'s Eco Actions',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 8),
+          ...actions.map((action) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: EcoActionCard(
+              action: action,
+              onTap: () {},
+            ),
+          )).toList(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImpactStats(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Your Impact',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: StatsCard(
+                title: 'Carbon Offset',
+                value: '2,500 kg',
+                icon: Icons.eco,
+                color: Colors.green,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: StatsCard(
+                title: 'Trees Planted',
+                value: '150',
+                icon: Icons.park,
+                color: Colors.brown,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLeaderboardSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Leaderboard',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 12),
+        Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            children: [
+              TabBar(
+                controller: _leaderboardTabController,
+                tabs: const [
+                  Tab(text: 'Friends'),
+                  Tab(text: 'Global'),
+                ],
+              ),
+              SizedBox(
+                height: 200,
+                child: TabBarView(
+                  controller: _leaderboardTabController,
+                  children: [
+                    _buildLeaderboardList(isFriends: true),
+                    _buildLeaderboardList(isFriends: false),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLeaderboardList({required bool isFriends}) {
+    final users = isFriends ? _getDummyFriends() : _getDummyGlobalUsers();
+    
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: users.length,
+      itemBuilder: (context, index) {
+        final user = users[index];
+        return ListTile(
+          leading: CircleAvatar(
+            backgroundImage: AssetImage(user.avatar),
+          ),
+          title: Text(user.name),
+          trailing: Text(
+            '${user.points} pts',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.primary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  List<User> _getDummyFriends() {
+    return [
+      User(
+        id: '1',
+        name: 'Alice Johnson',
+        email: 'alice@example.com',
+        points: 1200,
+        avatar: 'assets/images/avatar1.png',
+        level: UserLevel(
+          level: 5,
+          currentXP: 500,
+          requiredXP: 1000,
+          title: 'Eco Warrior',
+        ),
+        preferences: const UserPreferences(),
+        joinDate: DateTime.now(),
+      ),
+      // Add more friends...
+    ];
+  }
+
+  List<User> _getDummyGlobalUsers() {
+    return [
+      User(
+        id: '2',
+        name: 'Bob Smith',
+        email: 'bob@example.com',
+        points: 2000,
+        avatar: 'assets/images/avatar2.png',
+        level: UserLevel(
+          level: 7,
+          currentXP: 800,
+          requiredXP: 1000,
+          title: 'Nature Guardian',
+        ),
+        preferences: const UserPreferences(),
+        joinDate: DateTime.now(),
+      ),
+      // Add more global users...
+    ];
+  }
+
+  Widget _buildShimmerLoading() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 200,
+            height: 24,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            width: 150,
+            height: 16,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+        ],
+      ),
+    ).animate(onPlay: (controller) => controller.repeat())
+        .shimmer(duration: const Duration(seconds: 1));
+  }
+}
+
+--- Content of navigation_service.dart in folder services ---
+// lib/services/navigation_service.dart
+import 'package:flutter/material.dart';
+
+class NavigationService {
+  final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+  Future<dynamic> navigateTo(String routeName, {Object? arguments}) {
+    return navigatorKey.currentState!.pushNamed(
+      routeName,
+      arguments: arguments,
+    );
+  }
+
+  Future<dynamic> replaceTo(String routeName, {Object? arguments}) {
+    return navigatorKey.currentState!.pushReplacementNamed(
+      routeName,
+      arguments: arguments,
+    );
+  }
+
+  void goBack([dynamic result]) {
+    return navigatorKey.currentState!.pop(result);
+  }
+}
+
+
+
+--- Content of analytics_service.dart in folder services ---
+// lib/services/analytics_service.dart
+import 'package:flutter/foundation.dart';
+import 'dart:convert';
+
+class AnalyticsService {
+  static final AnalyticsService _instance = AnalyticsService._internal();
+  final List<Map<String, dynamic>> _events = [];
+  Map<String, dynamic>? _userProperties;
+  bool _isInitialized = false;
+
+  factory AnalyticsService() {
+    return _instance;
+  }
+
+  AnalyticsService._internal();
+
+  Future<void> initialize() async {
+    if (_isInitialized) return;
+    
+    try {
+      _isInitialized = true;
+      debugPrint('AnalyticsService initialized');
+    } catch (e) {
+      debugPrint('Failed to initialize AnalyticsService: $e');
+    }
+  }
+
+  Future<void> logEvent({
+    required String name,
+    Map<String, dynamic>? parameters,
+  }) async {
+    if (!_isInitialized) {
+      debugPrint('AnalyticsService not initialized');
+      return;
+    }
+
+    try {
+      final eventData = {
+        'name': name,
+        'parameters': parameters,
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+      _events.add(eventData);
+
+      // Debug logging
+      debugPrint('Analytics Event: $name');
+      if (parameters != null) {
+        debugPrint('Parameters: ${jsonEncode(parameters)}');
+      }
+    } catch (e) {
+      debugPrint('Failed to log event: $e');
+    }
+  }
+
+  Future<void> setUserProperties({
+    required String userId,
+    required Map<String, dynamic> properties,
+  }) async {
+    if (!_isInitialized) {
+      debugPrint('AnalyticsService not initialized');
+      return;
+    }
+
+    try {
+      _userProperties = {
+        'userId': userId,
+        'properties': properties,
+        'lastUpdated': DateTime.now().toIso8601String(),
+      };
+
+      // Debug logging
+      debugPrint('Set User Properties for user: $userId');
+      debugPrint('Properties: ${jsonEncode(properties)}');
+    } catch (e) {
+      debugPrint('Failed to set user properties: $e');
+    }
+  }
+
+  Future<void> logScreenView({
+    required String screenName,
+    String? screenClass,
+  }) async {
+    await logEvent(
+      name: 'screen_view',
+      parameters: {
+        'screen_name': screenName,
+        if (screenClass != null) 'screen_class': screenClass,
+      },
+    );
+  }
+
+  Future<void> logUserAction({
+    required String action,
+    required String category,
+    String? label,
+    int? value,
+  }) async {
+    await logEvent(
+      name: 'user_action',
+      parameters: {
+        'action': action,
+        'category': category,
+        if (label != null) 'label': label,
+        if (value != null) 'value': value,
+      },
+    );
+  }
+
+  Future<void> logError({
+    required String error,
+    StackTrace? stackTrace,
+    String? fatal,
+  }) async {
+    await logEvent(
+      name: 'error',
+      parameters: {
+        'description': error,
+        if (stackTrace != null) 'stack_trace': stackTrace.toString(),
+        if (fatal != null) 'fatal': fatal,
+      },
+    );
+  }
+
+  List<Map<String, dynamic>> getStoredEvents() {
+    return List<Map<String, dynamic>>.from(_events);
+  }
+
+  void clearStoredEvents() {
+    _events.clear();
+  }
+
+  Map<String, dynamic>? getUserProperties() {
+    return _userProperties != null 
+        ? Map<String, dynamic>.from(_userProperties!)
+        : null;
+  }
+
+  // Predefined events
+  Future<void> logAppOpen() async {
+    await logEvent(name: 'app_open');
+  }
+
+  Future<void> logLogin({required String method}) async {
+    await logEvent(
+      name: 'login',
+      parameters: {'method': method},
+    );
+  }
+
+  Future<void> logSignUp({required String method}) async {
+    await logEvent(
+      name: 'sign_up',
+      parameters: {'method': method},
+    );
+  }
+
+  Future<void> logEcoAction({
+    required String actionId,
+    required String actionName,
+    required int points,
+    Map<String, dynamic>? additionalParams,
+  }) async {
+    await logEvent(
+      name: 'eco_action_completed',
+      parameters: {
+        'action_id': actionId,
+        'action_name': actionName,
+        'points': points,
+        if (additionalParams != null) ...additionalParams,
+      },
+    );
+  }
+
+  Future<void> logRewardRedeemed({
+    required String rewardId,
+    required String rewardName,
+    required int pointsSpent,
+  }) async {
+    await logEvent(
+      name: 'reward_redeemed',
+      parameters: {
+        'reward_id': rewardId,
+        'reward_name': rewardName,
+        'points_spent': pointsSpent,
+      },
+    );
+  }
+
+  Future<void> logAchievementUnlocked({
+    required String achievementId,
+    required String achievementName,
+  }) async {
+    await logEvent(
+      name: 'achievement_unlocked',
+      parameters: {
+        'achievement_id': achievementId,
+        'achievement_name': achievementName,
+      },
+    );
+  }
+
+  // Analytics reporting methods
+  String generateAnalyticsReport() {
+    if (_events.isEmpty) {
+      return 'No events recorded';
+    }
+
+    final buffer = StringBuffer();
+    buffer.writeln('Analytics Report');
+    buffer.writeln('================');
+    buffer.writeln('Total Events: ${_events.length}');
+    buffer.writeln();
+
+    // Group events by name
+    final eventGroups = <String, List<Map<String, dynamic>>>{};
+    for (var event in _events) {
+      final name = event['name'] as String;
+      eventGroups.putIfAbsent(name, () => []).add(event);
+    }
+
+    // Report for each event type
+    eventGroups.forEach((eventName, events) {
+      buffer.writeln('Event: $eventName');
+      buffer.writeln('Occurrences: ${events.length}');
+      buffer.writeln('Last occurrence: ${events.last['timestamp']}');
+      buffer.writeln('----------------------------------------');
+    });
+
+    return buffer.toString();
+  }
+
+  // Debug methods
+  void printCurrentState() {
+    debugPrint('\nAnalytics Service State');
+    debugPrint('=======================');
+    debugPrint('Initialized: $_isInitialized');
+    debugPrint('Total Events: ${_events.length}');
+    debugPrint('User Properties: ${_userProperties != null ? jsonEncode(_userProperties) : 'None'}');
+    debugPrint('=======================\n');
+  }
+}
+
+// Example usage:
+/*
+void main() async {
+  final analytics = AnalyticsService();
+  await analytics.initialize();
+  
+  await analytics.logEcoAction(
+    actionId: 'plant_tree_1',
+    actionName: 'Plant a Tree',
+    points: 100,
+  );
+  
+  await analytics.logScreenView(
+    screenName: 'Home Screen',
+  );
+  
+  await analytics.setUserProperties(
+    userId: 'user123',
+    properties: {
+      'level': 5,
+      'points': 1500,
+      'achievements': 10,
+    },
+  );
+  
+  analytics.printCurrentState();
+  print(analytics.generateAnalyticsReport());
+}
+*/
+
+--- Content of database_service.dart in folder services ---
+// lib/services/database_service.dart
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/post.dart';
+import 'package:logging/logging.dart';
+
+class DatabaseService {
+  final _supabase = Supabase.instance.client;
+  final _logger = Logger('DatabaseService');
+
+  // User Profile Methods
+  Future<void> createUserProfile({
+    required String userId,
+    required String name,
+    required String email,
+    String? avatarUrl,
+  }) async {
+    try {
+      await _supabase.from('profiles').insert({
+        'id': userId,
+        'name': name,
+        'email': email,
+        'avatar_url': avatarUrl,
+        'points': 0,
+      });
+    } catch (e) {
+      _logger.severe('Failed to create user profile: $e');
+      throw Exception('Failed to create user profile');
+    }
+  }
+
+  Future<void> updateUserProfile({
+    required String userId,
+    String? name,
+    String? avatarUrl,
+    String? bio,
+  }) async {
+    try {
+      final updates = <String, dynamic>{};
+      if (name != null) updates['name'] = name;
+      if (avatarUrl != null) updates['avatar_url'] = avatarUrl;
+      if (bio != null) updates['bio'] = bio;
+
+      await _supabase
+          .from('profiles')
+          .update(updates)
+          .eq('id', userId);
+    } catch (e) {
+      _logger.severe('Failed to update user profile: $e');
+      throw Exception('Failed to update user profile');
+    }
+  }
+
+  Future<Map<String, dynamic>?> getUserProfile(String userId) async {
+    try {
+      final response = await _supabase
+          .from('profiles')
+          .select()
+          .eq('id', userId)
+          .single();
+      return response;
+    } catch (e) {
+      _logger.severe('Failed to get user profile: $e');
+      throw Exception('Failed to get user profile');
+    }
+  }
+
+  // Eco Actions Methods
+  Future<void> saveEcoAction({
+    required String userId,
+    required String actionType,
+    required int points,
+    required String imageUrl,
+    required String description,
+    double? latitude,
+    double? longitude,
+    bool shouldPost = false,
+  }) async {
+    try {
+      final actionResponse = await _supabase.from('eco_actions').insert({
+        'user_id': userId,
+        'action_type': actionType,
+        'points': points,
+        'image_url': imageUrl,
+        'description': description,
+        'latitude': latitude,
+        'longitude': longitude,
+      }).select('id').single();
+
+      // Update user points
+      await _supabase.rpc('update_user_points', params: {
+        'user_id': userId,
+        'points_to_add': points,
+      });
+
+      // Create social post if requested
+      if (shouldPost) {
+        await createPost(
+          userId: userId,
+          imageUrl: imageUrl,
+          description: description,
+          actionType: actionType,
+          points: points,
+          ecoActionId: actionResponse['id'],
+        );
+      }
+    } catch (e) {
+      _logger.severe('Failed to save eco action: $e');
+      throw Exception('Failed to save eco action');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getUserEcoActions(String userId) async {
+    try {
+      final response = await _supabase
+          .from('eco_actions')
+          .select()
+          .eq('user_id', userId)
+          .order('created_at', ascending: false);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      _logger.severe('Failed to get eco actions: $e');
+      throw Exception('Failed to get eco actions');
+    }
+  }
+
+  // Social Posts Methods
+  Future<void> createPost({
+    required String userId,
+    required String imageUrl,
+    required String description,
+    required String actionType,
+    required int points,
+    String? ecoActionId,
+  }) async {
+    try {
+      await _supabase.from('posts').insert({
+        'user_id': userId,
+        'image_url': imageUrl,
+        'description': description,
+        'action_type': actionType,
+        'points': points,
+        'eco_action_id': ecoActionId,
+        'likes': 0,
+        'comments': 0,
+      });
+    } catch (e) {
+      _logger.severe('Failed to create post: $e');
+      throw Exception('Failed to create post');
+    }
+  }
+
+  Future<List<Post>> getPosts({
+    int limit = 10,
+    int offset = 0,
+    String? userId,
+  }) async {
+    try {
+      var query = _supabase
+          .from('posts')
+          .select('''
+            *,
+            profiles!inner (
+              name,
+              avatar_url
+            ),
+            likes (
+              user_id
+            )
+          ''');
+
+      // Apply filters
+      if (userId != null) {
+        query = query.contains('user_id', userId);
+      }
+
+      // Apply ordering and pagination
+      final response = await query
+          .order('created_at', ascending: false)
+          .range(offset, offset + limit - 1);
+
+      return response.map((post) {
+        final likes = post['likes'] as List;
+        final isLiked = likes.any((like) => 
+          like['user_id'] == _supabase.auth.currentUser?.id);
+        return Post.fromJson({...post, 'is_liked': isLiked});
+      }).toList();
+    } catch (e) {
+      _logger.severe('Failed to get posts: $e');
+      throw Exception('Failed to get posts');
+    }
+  }
+
+  Future<void> likePost(String postId) async {
+    try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) throw Exception('User not authenticated');
+
+      // Check if already liked
+      final existing = await _supabase
+          .from('likes')
+          .select()
+          .eq('post_id', postId)
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      if (existing == null) {
+        // Like the post
+        await _supabase.from('likes').insert({
+          'post_id': postId,
+          'user_id': userId,
+        });
+
+        // Increment likes count
+        await _supabase.rpc('increment_post_likes', params: {
+          'post_id': postId,
+        });
+      } else {
+        // Unlike the post
+        await _supabase
+            .from('likes')
+            .delete()
+            .eq('post_id', postId)
+            .eq('user_id', userId);
+
+        // Decrement likes count
+        await _supabase.rpc('decrement_post_likes', params: {
+          'post_id': postId,
+        });
+      }
+    } catch (e) {
+      _logger.severe('Failed to like/unlike post: $e');
+      throw Exception('Failed to like/unlike post');
+    }
+  }
+
+  // Comments Methods
+  Future<void> addComment({
+    required String postId,
+    required String comment,
+  }) async {
+    try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) throw Exception('User not authenticated');
+
+      await _supabase.from('comments').insert({
+        'post_id': postId,
+        'user_id': userId,
+        'comment': comment,
+      });
+
+      // Increment comments count
+      await _supabase.rpc('increment_post_comments', params: {
+        'post_id': postId,
+      });
+    } catch (e) {
+      _logger.severe('Failed to add comment: $e');
+      throw Exception('Failed to add comment');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getComments(String postId) async {
+    try {
+      final response = await _supabase
+          .from('comments')
+          .select('''
+            *,
+            profiles!inner (
+              name,
+              avatar_url
+            )
+          ''')
+          .eq('post_id', postId)
+          .order('created_at', ascending: true);
+
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      _logger.severe('Failed to get comments: $e');
+      throw Exception('Failed to get comments');
+    }
+  }
+
+  // Achievement Methods
+  Future<void> checkAndAwardAchievements(String userId) async {
+    try {
+      await _supabase.rpc('check_achievements', params: {
+        'user_id': userId,
+      });
+    } catch (e) {
+      _logger.severe('Failed to check achievements: $e');
+      throw Exception('Failed to check achievements');
+    }
+  }
+
+  // Statistics Methods
+  Future<Map<String, dynamic>> getUserStats(String userId) async {
+    try {
+      final response = await _supabase.rpc('get_user_stats', params: {
+        'user_id': userId,
+      });
+      return Map<String, dynamic>.from(response);
+    } catch (e) {
+      _logger.severe('Failed to get user stats: $e');
+      throw Exception('Failed to get user stats');
+    }
+  }
+
+  // Real-time subscriptions
+  Stream<List<Map<String, dynamic>>> subscribeToNewPosts() {
+    return _supabase
+        .from('posts')
+        .stream(primaryKey: ['id'])
+        .order('created_at')
+        .map((list) => List<Map<String, dynamic>>.from(list));
+  }
+
+  Stream<List<Map<String, dynamic>>> subscribeToComments(String postId) {
+    return _supabase
+        .from('comments')
+        .stream(primaryKey: ['id'])
+        .eq('post_id', postId)
+        .order('created_at')
+        .map((list) => List<Map<String, dynamic>>.from(list));
+  }
+}
+
+--- Content of auth_service.dart in folder services ---
+// lib/services/auth_service.dart
+import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+class AuthService extends ChangeNotifier {
+  final _supabase = Supabase.instance.client;
+  User? get currentUser => _supabase.auth.currentUser;
+  
+  Future<void> signUp({
+    required String email,
+    required String password,
+    required String name,
+  }) async {
+    try {
+      final response = await _supabase.auth.signUp(
+        email: email,
+        password: password,
+        data: {'name': name},
+      );
+      
+      if (response.user != null) {
+        // Create user profile in the database
+        await _supabase.from('profiles').insert({
+          'id': response.user!.id,
+          'name': name,
+          'email': email,
+          'points': 0,
+        });
+      }
+      
+      notifyListeners();
+    } catch (e) {
+      throw Exception('Failed to sign up: $e');
+    }
+  }
+
+  Future<void> signIn({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      await _supabase.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+      notifyListeners();
+    } catch (e) {
+      throw Exception('Failed to sign in: $e');
+    }
+  }
+
+  Future<void> signOut() async {
+    try {
+      await _supabase.auth.signOut();
+      notifyListeners();
+    } catch (e) {
+      throw Exception('Failed to sign out: $e');
+    }
+  }
+}
+
+--- Content of notification_service.dart in folder services ---
+// lib/services/notification_service.dart
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/timezone.dart' as tz;
+
+class NotificationService {
+  final FlutterLocalNotificationsPlugin _notifications = 
+      FlutterLocalNotificationsPlugin();
+
+  Future<void> initialize() async {
+    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const iosSettings = DarwinInitializationSettings();
+    
+    const initSettings = InitializationSettings(
+      android: androidSettings,
+      iOS: iosSettings,
+    );
+
+    await _notifications.initialize(initSettings);
+  }
+
+  Future<void> showNotification({
+    required int id,
+    required String title,
+    required String body,
+    String? payload,
+  }) async {
+    const androidDetails = AndroidNotificationDetails(
+      'default_channel',
+      'Default Channel',
+      importance: Importance.high,
+      priority: Priority.high,
+    );
+
+    const iosDetails = DarwinNotificationDetails();
+
+    const details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    await _notifications.show(id, title, body, details, payload: payload);
+  }
+
+  Future<void> scheduleNotification({
+    required int id,
+    required String title,
+    required String body,
+    required DateTime scheduledDate,
+    String? payload,
+  }) async {
+    const androidDetails = AndroidNotificationDetails(
+      'scheduled_channel',
+      'Scheduled Channel',
+      importance: Importance.high,
+      priority: Priority.high,
+    );
+
+    const iosDetails = DarwinNotificationDetails();
+
+    const details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    await _notifications.zonedSchedule(
+      id,
+      title,
+      body,
+      tz.TZDateTime.from(scheduledDate, tz.local),
+      details,
+      androidAllowWhileIdle: true,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      payload: payload,
+    );
+  }
+
+  Future<void> cancelNotification(int id) async {
+    await _notifications.cancel(id);
+  }
+
+  Future<void> cancelAllNotifications() async {
+    await _notifications.cancelAll();
+  }
+}
+
+--- Content of api_service.dart in folder services ---
+// lib/services/api_service.dart
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+
+class ApiService {
+  static const String _baseUrl = 'YOUR_API_BASE_URL';
+  static const Duration _timeout = Duration(seconds: 30);
+  
+  final Map<String, String> _defaultHeaders = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  };
+
+  // Singleton pattern
+  static final ApiService _instance = ApiService._internal();
+  
+  factory ApiService() {
+    return _instance;
+  }
+
+  ApiService._internal();
+
+  void setAuthToken(String token) {
+    _defaultHeaders['Authorization'] = 'Bearer $token';
+  }
+
+  void removeAuthToken() {
+    _defaultHeaders.remove('Authorization');
+  }
+
+  Future<T?> get<T>(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+    Map<String, String>? headers,
+  }) async {
+    try {
+      final uri = Uri.parse('$_baseUrl$path').replace(
+        queryParameters: queryParameters?.map(
+          (key, value) => MapEntry(key, value.toString()),
+        ),
+      );
+
+      final response = await http
+          .get(
+            uri,
+            headers: {..._defaultHeaders, ...?headers},
+          )
+          .timeout(_timeout);
+
+      return _handleResponse<T>(response);
+    } catch (e) {
+      _handleError(e);
+      rethrow;
+    }
+  }
+
+  Future<T?> post<T>(
+    String path, {
+    dynamic data,
+    Map<String, String>? headers,
+  }) async {
+    try {
+      final uri = Uri.parse('$_baseUrl$path');
+      final response = await http
+          .post(
+            uri,
+            headers: {..._defaultHeaders, ...?headers},
+            body: jsonEncode(data),
+          )
+          .timeout(_timeout);
+
+      return _handleResponse<T>(response);
+    } catch (e) {
+      _handleError(e);
+      rethrow;
+    }
+  }
+
+  Future<T?> put<T>(
+    String path, {
+    dynamic data,
+    Map<String, String>? headers,
+  }) async {
+    try {
+      final uri = Uri.parse('$_baseUrl$path');
+      final response = await http
+          .put(
+            uri,
+            headers: {..._defaultHeaders, ...?headers},
+            body: jsonEncode(data),
+          )
+          .timeout(_timeout);
+
+      return _handleResponse<T>(response);
+    } catch (e) {
+      _handleError(e);
+      rethrow;
+    }
+  }
+
+  Future<T?> delete<T>(
+    String path, {
+    Map<String, String>? headers,
+  }) async {
+    try {
+      final uri = Uri.parse('$_baseUrl$path');
+      final response = await http
+          .delete(
+            uri,
+            headers: {..._defaultHeaders, ...?headers},
+          )
+          .timeout(_timeout);
+
+      return _handleResponse<T>(response);
+    } catch (e) {
+      _handleError(e);
+      rethrow;
+    }
+  }
+
+  T? _handleResponse<T>(http.Response response) {
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      if (response.body.isEmpty) return null;
+      
+      final data = jsonDecode(response.body);
+      return data as T;
+    } else {
+      throw ApiException(
+        statusCode: response.statusCode,
+        message: _getErrorMessage(response),
+      );
+    }
+  }
+
+  String _getErrorMessage(http.Response response) {
+    try {
+      final data = jsonDecode(response.body);
+      return data['message'] ?? 'Unknown error occurred';
+    } catch (e) {
+      return 'Error: ${response.statusCode}';
+    }
+  }
+
+  void _handleError(dynamic error) {
+    if (error is ApiException) {
+      debugPrint('API Error: ${error.message}');
+    } else if (error is http.ClientException) {
+      debugPrint('Network Error: ${error.message}');
+    } else {
+      debugPrint('Unexpected Error: $error');
+    }
+  }
+
+  // Convenience methods for specific API endpoints
+  Future<Map<String, dynamic>?> getUserProfile(String userId) async {
+    return await get<Map<String, dynamic>>('/users/$userId');
+  }
+
+  Future<List<Map<String, dynamic>>?> getEcoActions() async {
+    return await get<List<Map<String, dynamic>>>('/eco-actions');
+  }
+
+  Future<Map<String, dynamic>?> completeEcoAction(
+    String actionId,
+    Map<String, dynamic> data,
+  ) async {
+    return await post<Map<String, dynamic>>(
+      '/eco-actions/$actionId/complete',
+      data: data,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>?> getRewards() async {
+    return await get<List<Map<String, dynamic>>>('/rewards');
+  }
+
+  Future<Map<String, dynamic>?> redeemReward(
+    String rewardId,
+    Map<String, dynamic> data,
+  ) async {
+    return await post<Map<String, dynamic>>(
+      '/rewards/$rewardId/redeem',
+      data: data,
+    );
+  }
+
+  Future<Map<String, dynamic>?> updateUserProfile(
+    String userId,
+    Map<String, dynamic> data,
+  ) async {
+    return await put<Map<String, dynamic>>(
+      '/users/$userId',
+      data: data,
+    );
+  }
+}
+
+class ApiException implements Exception {
+  final int statusCode;
+  final String message;
+
+  ApiException({
+    required this.statusCode,
+    required this.message,
+  });
+
+  @override
+  String toString() => 'ApiException: $statusCode - $message';
+}
+
+// Example usage:
+/*
+void main() async {
+  final api = ApiService();
+  
+  // Set auth token after login
+  api.setAuthToken('your-auth-token');
+  
+  try {
+    // Get user profile
+    final profile = await api.getUserProfile('123');
+    print(profile);
+    
+    // Get eco actions
+    final actions = await api.getEcoActions();
+    print(actions);
+    
+    // Complete an eco action
+    final result = await api.completeEcoAction(
+      'action123',
+      {'proof': 'image_url.jpg'},
+    );
+    print(result);
+  } on ApiException catch (e) {
+    print('API Error: ${e.message}');
+  } catch (e) {
+    print('Unexpected error: $e');
+  }
+}
+*/
+
+--- Content of theme_service.dart in folder services ---
+// lib/services/theme_service.dart
+import 'package:flutter/material.dart';
+
+class ThemeService extends ChangeNotifier {
+  static final ThemeService _instance = ThemeService._internal();
+  bool _isLightTheme = true;
+
+  factory ThemeService() {
+    return _instance;
+  }
+
+  ThemeService._internal();
+
+  ThemeMode get themeMode => _isLightTheme ? ThemeMode.light : ThemeMode.dark;
+  bool get isLightTheme => _isLightTheme;
+
+  void toggleTheme() {
+    _isLightTheme = !_isLightTheme;
+    notifyListeners();
+  }
+
+  ThemeData getLightTheme() {
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: Colors.green,
+        brightness: Brightness.light,
+      ),
+      appBarTheme: const AppBarTheme(
+        centerTitle: true,
+        elevation: 0,
+      ),
+      cardTheme: CardTheme(
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          elevation: 2,
+          padding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 12,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 12,
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+      chipTheme: ChipThemeData(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        selectedItemColor: Colors.green,
+        unselectedItemColor: Colors.grey,
+      ),
+      textTheme: const TextTheme(
+        headlineLarge: TextStyle(
+          fontWeight: FontWeight.bold,
+        ),
+        headlineMedium: TextStyle(
+          fontWeight: FontWeight.bold,
+        ),
+        headlineSmall: TextStyle(
+          fontWeight: FontWeight.bold,
+        ),
+        titleLarge: TextStyle(
+          fontWeight: FontWeight.w600,
+        ),
+        titleMedium: TextStyle(
+          fontWeight: FontWeight.w600,
+        ),
+        titleSmall: TextStyle(
+          fontWeight: FontWeight.w600,
+        ),
+        bodyLarge: TextStyle(
+          fontSize: 16,
+        ),
+        bodyMedium: TextStyle(
+          fontSize: 14,
+        ),
+        bodySmall: TextStyle(
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+
+  ThemeData getDarkTheme() {
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: Colors.green,
+        brightness: Brightness.dark,
+      ),
+      appBarTheme: const AppBarTheme(
+        centerTitle: true,
+        elevation: 0,
+      ),
+      cardTheme: CardTheme(
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          elevation: 2,
+          padding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 12,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 12,
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+      chipTheme: ChipThemeData(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        selectedItemColor: Colors.green[300],
+        unselectedItemColor: Colors.grey,
+      ),
+      textTheme: const TextTheme(
+        headlineLarge: TextStyle(
+          fontWeight: FontWeight.bold,
+        ),
+        headlineMedium: TextStyle(
+          fontWeight: FontWeight.bold,
+        ),
+        headlineSmall: TextStyle(
+          fontWeight: FontWeight.bold,
+        ),
+        titleLarge: TextStyle(
+          fontWeight: FontWeight.w600,
+        ),
+        titleMedium: TextStyle(
+          fontWeight: FontWeight.w600,
+        ),
+        titleSmall: TextStyle(
+          fontWeight: FontWeight.w600,
+        ),
+        bodyLarge: TextStyle(
+          fontSize: 16,
+        ),
+        bodyMedium: TextStyle(
+          fontSize: 14,
+        ),
+        bodySmall: TextStyle(
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+}
+
+// Example usage:
+/*
+void main() {
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => ThemeService(),
+      child: MyApp(),
+    ),
+  );
+}
+
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final themeService = Provider.of<ThemeService>(context);
+    
+    return MaterialApp(
+      theme: themeService.getLightTheme(),
+      darkTheme: themeService.getDarkTheme(),
+      themeMode: themeService.themeMode,
+      home: HomeScreen(),
+    );
+  }
+}
+
+// To toggle theme:
+ElevatedButton(
+  onPressed: () {
+    Provider.of<ThemeService>(context, listen: false).toggleTheme();
+  },
+  child: Text('Toggle Theme'),
+)
+*/
+
+--- Content of storage_service.dart in folder services ---
+// lib/services/storage_service.dart
+import 'dart:io';
+import 'package:path/path.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+class StorageService {
+  final _supabase = Supabase.instance.client;
+
+  Future<String> uploadImage(File imageFile, String userId) async {
+    try {
+      final fileExt = extension(imageFile.path);
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}$fileExt';
+      final filePath = 'eco-actions/$userId/$fileName';
+      
+      await _supabase.storage.from('images').upload(
+        filePath,
+        imageFile,
+        fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
+      );
+      
+      return _supabase.storage.from('images').getPublicUrl(filePath);
+    } catch (e) {
+      throw Exception('Failed to upload image: $e');
+    }
+  }
+}
+
+--- Content of custom_animations.dart in folder animations ---
+// lib/animations/custom_animations.dart
+import 'package:flutter/material.dart';
+
+class CustomPageRoute<T> extends PageRouteBuilder<T> {
+  final Widget child;
+
+  CustomPageRoute({required this.child})
+      : super(
+          pageBuilder: (context, animation, secondaryAnimation) => child,
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            const begin = Offset(1.0, 0.0);
+            const end = Offset.zero;
+            const curve = Curves.easeInOutCubic;
+
+            var tween = Tween(begin: begin, end: end).chain(
+              CurveTween(curve: curve),
+            );
+
+            var offsetAnimation = animation.drive(tween);
+
+            return SlideTransition(
+              position: offsetAnimation,
+              child: child,
+            );
+          },
+        );
+}
+
+class FadeScaleTransition extends StatelessWidget {
+  final Widget child;
+  final Duration duration;
+  final Duration delay;
+
+  const FadeScaleTransition({
+    Key? key,
+    required this.child,
+    this.duration = const Duration(milliseconds: 300),
+    this.delay = Duration.zero,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: duration,
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.scale(
+            scale: 0.8 + (0.2 * value),
+            child: child,
+          ),
+        );
+      },
+      child: child,
+    );
+  }
+}
+
+
+
+--- Content of achievement_card.dart in folder widgets ---
+//lib/widgets/achievement_card.dart
+
+import 'package:flutter/material.dart';
+import '../models/achievement.dart';
+
+class AchievementCard extends StatelessWidget {
+  final Achievement achievement;
+
+  const AchievementCard({Key? key, required this.achievement}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.secondaryContainer,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                achievement.icon,
+                color: Theme.of(context).colorScheme.onSecondaryContainer,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    achievement.title,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  Text(
+                    achievement.description,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+
+--- Content of animated_progress_bar.dart in folder widgets ---
+// lib/widgets/animated_progress_bar.dart
+import 'package:flutter/material.dart';
+
+class AnimatedProgressBar extends StatelessWidget {
+  final double progress;
+  final Color backgroundColor;
+  final Color foregroundColor;
+  final double height;
+  final Duration duration;
+
+  const AnimatedProgressBar({
+    Key? key,
+    required this.progress,
+    required this.backgroundColor,
+    required this.foregroundColor,
+    this.height = 8.0,
+    this.duration = const Duration(milliseconds: 500),
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: height,
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(height / 2),
+      ),
+      child: Stack(
+        children: [
+          TweenAnimationBuilder<double>(
+            duration: duration,
+            curve: Curves.easeInOut,
+            tween: Tween<double>(
+              begin: 0,
+              end: progress.clamp(0.0, 1.0),
+            ),
+            builder: (context, value, _) => FractionallySizedBox(
+              widthFactor: value,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: foregroundColor,
+                  borderRadius: BorderRadius.circular(height / 2),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+
+--- Content of stats_card.dart in folder widgets ---
+// lib/widgets/stats_card.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+
+class StatsCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+  final Color color;
+  final bool isWide;
+  final VoidCallback? onTap;
+
+  const StatsCard({
+    Key? key,
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.color,
+    this.isWide = false,
+    this.onTap,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      icon,
+                      color: color,
+                      size: 24,
+                    ),
+                  ),
+                  if (isWide) ...[
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: theme.textTheme.titleMedium,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              if (!isWide) ...[
+                const SizedBox(height: 12),
+                Text(
+                  title,
+                  style: theme.textTheme.titleMedium,
+                ),
+              ],
+              const SizedBox(height: 8),
+              Text(
+                value,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+              const SizedBox(height: 4),
+              if (isWide)
+                LinearProgressIndicator(
+                  value: 0.7,
+                  backgroundColor: color.withOpacity(0.2),
+                  valueColor: AlwaysStoppedAnimation<Color>(color),
+                ),
+            ],
+          ),
+        ),
+      ),
+    ).animate()
+      .fadeIn()
+      .scale(delay: const Duration(milliseconds: 300));
+  }
+}
+
+--- Content of action_button.dart in folder widgets ---
+//lib/widgets/action_button.dart
+
+import 'package:flutter/material.dart';
+
+class ActionButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onPressed;
+  final String label;
+
+  const ActionButton({
+    Key? key,
+    required this.icon,
+    required this.onPressed,
+    required this.label,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        ElevatedButton(
+          onPressed: onPressed,
+          style: ElevatedButton.styleFrom(
+            shape: const CircleBorder(),
+            padding: const EdgeInsets.all(16),
+            backgroundColor: Theme.of(context).colorScheme.secondary,
+          ),
+          child: Icon(icon, color: Colors.white),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.white),
+        ),
+      ],
+    );
+  }
+}
+
+
+
+--- Content of reward_card.dart in folder widgets ---
+// lib/widgets/reward_card.dart
+import 'package:flutter/material.dart';
+import '../models/reward.dart';
+
+class RewardCard extends StatelessWidget {
+  final Reward reward;
+  final VoidCallback? onTap;
+
+  const RewardCard({
+    Key? key,
+    required this.reward,
+    this.onTap,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AspectRatio(
+              aspectRatio: 1.5,
+              child: Image.asset(
+                reward.image,
+                fit: BoxFit.cover,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    reward.title,
+                    style: Theme.of(context).textTheme.titleMedium,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${reward.points} Points',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+--- Content of webcam_provider.dart in folder widgets ---
+import 'package:flutter/material.dart';
+import 'package:camera/camera.dart';
+
+class WebcamPreview extends StatefulWidget {
+  const WebcamPreview({Key? key}) : super(key: key);
+
+  @override
+  State<WebcamPreview> createState() => _WebcamPreviewState();
+}
+
+class _WebcamPreviewState extends State<WebcamPreview> {
+  CameraController? _controller;
+  bool _isCameraInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeCamera();
+  }
+
+  Future<void> _initializeCamera() async {
+    final cameras = await availableCameras();
+    
+    // Find front camera
+    final frontCamera = cameras.firstWhere(
+      (camera) => camera.lensDirection == CameraLensDirection.front,
+      orElse: () => cameras.first,
+    );
+
+    final controller = CameraController(
+      frontCamera,
+      ResolutionPreset.medium,
+      enableAudio: false,
+    );
+
+    try {
+      await controller.initialize();
+      if (mounted) {
+        setState(() {
+          _controller = controller;
+          _isCameraInitialized = true;
+        });
+      }
+    } catch (e) {
+      print('Error initializing camera: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_isCameraInitialized) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
+    return AspectRatio(
+      aspectRatio: _controller!.value.aspectRatio,
+      child: CameraPreview(_controller!),
+    );
+  }
+}
+
+--- Content of custom_button_sheet.dart in folder widgets ---
+// lib/widgets/custom_bottom_sheet.dart
+import 'package:flutter/material.dart';
+
+class CustomBottomSheet extends StatelessWidget {
+  final String title;
+  final List<Widget> children;
+  final VoidCallback? onClose;
+  final Widget? action;
+  final double initialChildSize;
+  final double minChildSize;
+  final double maxChildSize;
+  final bool isDismissible;
+  final bool enableDrag;
+  final Color? backgroundColor;
+  final BorderRadius? borderRadius;
+
+  const CustomBottomSheet({
+    Key? key,
+    required this.title,
+    required this.children,
+    this.onClose,
+    this.action,
+    this.initialChildSize = 0.9,
+    this.minChildSize = 0.5,
+    this.maxChildSize = 0.95,
+    this.isDismissible = true,
+    this.enableDrag = true,
+    this.backgroundColor,
+    this.borderRadius,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: backgroundColor ?? Theme.of(context).scaffoldBackgroundColor,
+        borderRadius: borderRadius ?? const BorderRadius.vertical(
+          top: Radius.circular(20),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildHandle(context),
+          _buildHeader(context),
+          Flexible(
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              shrinkWrap: true,
+              children: children,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHandle(BuildContext context) {
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.only(top: 8),
+        width: 40,
+        height: 4,
+        decoration: BoxDecoration(
+          color: Theme.of(context).dividerColor,
+          borderRadius: BorderRadius.circular(2),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: Theme.of(context).textTheme.titleLarge,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Row(
+            children: [
+              if (action != null) action!,
+              if (onClose != null)
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: onClose,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  static Future<T?> show<T>({
+    required BuildContext context,
+    required String title,
+    required List<Widget> children,
+    VoidCallback? onClose,
+    Widget? action,
+    double initialChildSize = 0.9,
+    double minChildSize = 0.5,
+    double maxChildSize = 0.95,
+    bool isDismissible = true,
+    bool enableDrag = true,
+    Color? backgroundColor,
+    BorderRadius? borderRadius,
+  }) {
+    return showModalBottomSheet<T>(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: isDismissible,
+      enableDrag: enableDrag,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: initialChildSize,
+        minChildSize: minChildSize,
+        maxChildSize: maxChildSize,
+        builder: (context, scrollController) {
+          return CustomBottomSheet(
+            title: title,
+            children: children,
+            onClose: onClose ?? () => Navigator.pop(context),
+            action: action,
+            backgroundColor: backgroundColor,
+            borderRadius: borderRadius,
+          );
+        },
+      ),
+    );
+  }
+}
+
+// Example usage:
+/*
+// Simple usage
+CustomBottomSheet.show(
+  context: context,
+  title: 'Bottom Sheet Title',
+  children: [
+    ListTile(
+      title: Text('Item 1'),
+      onTap: () {
+        // Handle tap
+        Navigator.pop(context);
+      },
+    ),
+    ListTile(
+      title: Text('Item 2'),
+      onTap: () {
+        // Handle tap
+        Navigator.pop(context);
+      },
+    ),
+  ],
+);
+
+// Advanced usage
+CustomBottomSheet.show(
+  context: context,
+  title: 'Settings',
+  action: IconButton(
+    icon: Icon(Icons.save),
+    onPressed: () {
+      // Handle save
+      Navigator.pop(context);
+    },
+  ),
+  initialChildSize: 0.7,
+  minChildSize: 0.4,
+  maxChildSize: 0.9,
+  backgroundColor: Theme.of(context).cardColor,
+  borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+  children: [
+    // Your settings widgets here
+  ],
+);
+
+// With custom content
+CustomBottomSheet.show(
+  context: context,
+  title: 'Custom Content',
+  children: [
+    Container(
+      padding: EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Heading',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          SizedBox(height: 8),
+          Text(
+            'Description text goes here. This can be a longer piece of content '
+            'that explains something in detail.',
+          ),
+          SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () {
+              // Handle button press
+              Navigator.pop(context);
+            },
+            child: Text('Action Button'),
+          ),
+        ],
+      ),
+    ),
+  ],
+);
+*/
+
+--- Content of post_card.dart in folder widgets ---
+// lib/widgets/post_card.dart
+import 'package:flutter/material.dart';
+import '../models/post.dart';
+import 'package:timeago/timeago.dart' as timeago;
+
+class PostCard extends StatelessWidget {
+  final Post post;
+  final VoidCallback onLike;
+  final VoidCallback onComment;
+  final VoidCallback onShare;
+
+  const PostCard({
+    Key? key,
+    required this.post,
+    required this.onLike,
+    required this.onComment,
+    required this.onShare,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildHeader(context),
+          _buildImage(),
+          _buildActions(context),
+          _buildDetails(context),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    return ListTile(
+      leading: CircleAvatar(
+        backgroundImage: NetworkImage(post.userAvatar),
+      ),
+      title: Text(
+        post.userName,
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ),
+      subtitle: Text(timeago.format(post.createdAt)),
+      trailing: IconButton(
+        icon: const Icon(Icons.more_vert),
+        onPressed: () {
+          // Show post options
+        },
+      ),
+    );
+  }
+
+  Widget _buildImage() {
+    return GestureDetector(
+      onDoubleTap: onLike,
+      child: Container(
+        constraints: const BoxConstraints(
+          maxHeight: 400,
+        ),
+        width: double.infinity,
+        child: Image.network(
+          post.imageUrl,
+          fit: BoxFit.cover,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActions(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Row(
+        children: [
+          IconButton(
+            icon: Icon(
+              post.isLiked ? Icons.favorite : Icons.favorite_border,
+              color: post.isLiked ? Colors.red : null,
+            ),
+            onPressed: onLike,
+          ),
+          Text('${post.likes}'),
+          const SizedBox(width: 16),
+          IconButton(
+            icon: const Icon(Icons.comment_outlined),
+            onPressed: onComment,
+          ),
+          Text('${post.comments}'),
+          const Spacer(),
+          IconButton(
+            icon: const Icon(Icons.share_outlined),
+            onPressed: onShare,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetails(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.eco,
+                      size: 16,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '+${post.points} points',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.secondaryContainer,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  post.actionType,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.secondary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(post.description),
+        ],
+      ),
+    );
+  }
+}
+
+--- Content of eco_action_card.dart in folder widgets ---
+// lib/widgets/eco_action_card.dart
+import 'package:flutter/material.dart';
+import '../models/eco_action.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+
+class EcoActionCard extends StatelessWidget {
+  final EcoAction action;
+  final VoidCallback? onTap;
+  final bool isCompleted;
+  final double progress;
+
+  const EcoActionCard({
+    Key? key,
+    required this.action,
+    this.onTap,
+    this.isCompleted = false,
+    this.progress = 0.0,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _buildActionIcon(context),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          action.title,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          action.description,
+                          style: theme.textTheme.bodySmall,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _buildActionDetails(context),
+              if (progress > 0) ...[
+                const SizedBox(height: 8),
+                LinearProgressIndicator(
+                  value: progress,
+                  backgroundColor: theme.colorScheme.primaryContainer,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    theme.colorScheme.primary,
+                  ),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    ).animate()
+      .fadeIn()
+      .slideX(begin: 0.2, duration: const Duration(milliseconds: 500));
+  }
+
+  Widget _buildActionIcon(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(
+        action.icon,
+        color: Theme.of(context).colorScheme.primary,
+        size: 24,
+      ),
+    );
+  }
+
+  Widget _buildActionDetails(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Icon(
+              Icons.star,
+              size: 16,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              '${action.points} points',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        Row(
+          children: [
+            Icon(
+              Icons.eco,
+              size: 16,
+              color: Theme.of(context).colorScheme.secondary,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              '${action.carbonOffset}kg CO₂',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.secondary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        if (isCompleted)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.green.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Row(
+              children: [
+                Icon(
+                  Icons.check_circle,
+                  size: 16,
+                  color: Colors.green,
+                ),
+                SizedBox(width: 4),
+                Text(
+                  'Completed',
+                  style: TextStyle(
+                    color: Colors.green,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+
+
+--- Content of error_view.dart in folder widgets ---
+// lib/widgets/error_view.dart
+import 'package:flutter/material.dart';
+
+class ErrorView extends StatelessWidget {
+  final String message;
+  final VoidCallback? onRetry;
+  final IconData icon;
+
+  const ErrorView({
+    Key? key,
+    required this.message,
+    this.onRetry,
+    this.icon = Icons.error_outline,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 64,
+              color: Theme.of(context).colorScheme.error,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              style: Theme.of(context).textTheme.titleMedium,
+              textAlign: TextAlign.center,
+            ),
+            if (onRetry != null) ...[
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+--- Content of loading_overlay.dart in folder widgets ---
+// lib/widgets/loading_overlay.dart
+import 'package:flutter/material.dart';
+
+class LoadingOverlay extends StatelessWidget {
+  final Widget child;
+  final bool isLoading;
+  final String? message;
+
+  const LoadingOverlay({
+    Key? key,
+    required this.child,
+    required this.isLoading,
+    this.message,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        child,
+        if (isLoading)
+          Container(
+            color: Colors.black54,
+            child: Center(
+              child: Card(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const CircularProgressIndicator(),
+                      if (message != null) ...[
+                        const SizedBox(height: 16),
+                        Text(
+                          message!,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+
+
+--- Content of custom_card.dart in folder widgets ---
+// lib/widgets/custom_card.dart
+import 'package:flutter/material.dart';
+
+class CustomCard extends StatelessWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+  final EdgeInsetsGeometry? padding;
+  final Color? color;
+  final double elevation;
+  final BorderRadius? borderRadius;
+
+  const CustomCard({
+    Key? key,
+    required this.child,
+    this.onTap,
+    this.padding,
+    this.color,
+    this.elevation = 2,
+    this.borderRadius,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: elevation,
+      shape: RoundedRectangleBorder(
+        borderRadius: borderRadius ?? BorderRadius.circular(16),
+      ),
+      color: color ?? Theme.of(context).colorScheme.surface,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: borderRadius ?? BorderRadius.circular(16),
+        child: Padding(
+          padding: padding ?? const EdgeInsets.all(16),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+--- Content of comments_sheet.dart in folder widgets ---
+// lib/widgets/comments_sheet.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import '../models/post.dart';
+import '../services/database_service.dart';
+import 'package:timeago/timeago.dart' as timeago;
+
+class CommentsSheet extends StatefulWidget {
+  final Post post;
+
+  const CommentsSheet({
+    Key? key,
+    required this.post,
+  }) : super(key: key);
+
+  @override
+  State<CommentsSheet> createState() => _CommentsSheetState();
+}
+
+class _CommentsSheetState extends State<CommentsSheet> {
+  final _commentController = TextEditingController();
+  final _databaseService = DatabaseService();
+  bool _isLoading = false;
+  List<Map<String, dynamic>> _comments = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadComments();
+    _subscribeToComments();
+  }
+
+  Future<void> _loadComments() async {
+    setState(() => _isLoading = true);
+    try {
+      final comments = await _databaseService.getComments(widget.post.id);
+      setState(() {
+        _comments = comments;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      // Show error
+    }
+  }
+
+  void _subscribeToComments() {
+    _databaseService.subscribeToComments(widget.post.id).listen((comments) {
+      setState(() => _comments = comments);
+    });
+  }
+
+  Future<void> _addComment() async {
+    if (_commentController.text.trim().isEmpty) return;
+
+    try {
+      await _databaseService.addComment(
+        postId: widget.post.id,
+        comment: _commentController.text.trim(),
+      );
+      _commentController.clear();
+    } catch (e) {
+      // Show error
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.75,
+      decoration: BoxDecoration(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        children: [
+          _buildHeader(),
+          _buildCommentsList(),
+          _buildCommentInput(),
+        ],
+      ),
+    ).animate().slideY(
+          begin: 1,
+          end: 0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+  }
+
+  Widget _buildHeader() {
+    return Column(
+      children: [
+        const SizedBox(height: 8),
+        Container(
+          width: 40,
+          height: 4,
+          decoration: BoxDecoration(
+            color: Colors.grey[300],
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Text(
+                'Comments',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '(${widget.post.comments})',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Colors.grey,
+                    ),
+              ),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+      ],
+    );
+  }
+
+  Widget _buildCommentsList() {
+    if (_isLoading) {
+      return const Expanded(
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    return Expanded(
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: _comments.length,
+        itemBuilder: (context, index) {
+          final comment = _comments[index];
+          final profile = comment['profiles'] as Map<String, dynamic>;
+          
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  backgroundImage: NetworkImage(profile['avatar_url'] ?? ''),
+                  radius: 16,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            profile['name'] ?? 'Unknown',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            timeago.format(
+                              DateTime.parse(comment['created_at']),
+                            ),
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: Colors.grey,
+                                ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(comment['comment']),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ).animate().fadeIn(delay: Duration(milliseconds: 50 * index));
+        },
+      ),
+    );
+  }
+
+  Widget _buildCommentInput() {
+    return Container(
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 8,
+        bottom: 8 + MediaQuery.of(context).viewInsets.bottom,
+      ),
+      decoration: BoxDecoration(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        border: Border(
+          top: BorderSide(
+            color: Theme.of(context).dividerColor,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _commentController,
+              decoration: InputDecoration(
+                hintText: 'Add a comment...',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: BorderSide.none,
+                ),
+                filled: true,
+                fillColor: Theme.of(context).colorScheme.surfaceVariant,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+              ),
+              maxLines: null,
+              textCapitalization: TextCapitalization.sentences,
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            icon: const Icon(Icons.send_rounded),
+            onPressed: _addComment,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
+  }
+}
+
+--- Content of custom_button.dart in folder widgets ---
+// lib/widgets/custom_button.dart
+import 'package:flutter/material.dart';
+
+enum ButtonVariant { filled, outlined, text }
+
+class CustomButton extends StatelessWidget {
+  final String text;
+  final VoidCallback? onPressed;
+  final ButtonVariant variant;
+  final IconData? icon;
+  final bool isLoading;
+  final bool fullWidth;
+  final Color? color;
+
+  const CustomButton({
+    Key? key,
+    required this.text,
+    this.onPressed,
+    this.variant = ButtonVariant.filled,
+    this.icon,
+    this.isLoading = false,
+    this.fullWidth = true,
+    this.color,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
+    Widget button;
+    switch (variant) {
+      case ButtonVariant.filled:
+        button = FilledButton(
+          onPressed: isLoading ? null : onPressed,
+          style: FilledButton.styleFrom(
+            backgroundColor: color ?? theme.colorScheme.primary,
+            foregroundColor: theme.colorScheme.onPrimary,
+            padding: const EdgeInsets.symmetric(
+              horizontal: 24,
+              vertical: 16,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          child: _buildButtonContent(),
+        );
+        break;
+      case ButtonVariant.outlined:
+        button = OutlinedButton(
+          onPressed: isLoading ? null : onPressed,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: color ?? theme.colorScheme.primary,
+            padding: const EdgeInsets.symmetric(
+              horizontal: 24,
+              vertical: 16,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            side: BorderSide(
+              color: color ?? theme.colorScheme.primary,
+            ),
+          ),
+          child: _buildButtonContent(),
+        );
+        break;
+      case ButtonVariant.text:
+        button = TextButton(
+          onPressed: isLoading ? null : onPressed,
+          style: TextButton.styleFrom(
+            foregroundColor: color ?? theme.colorScheme.primary,
+            padding: const EdgeInsets.symmetric(
+              horizontal: 24,
+              vertical: 16,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          child: _buildButtonContent(),
+        );
+        break;
+    }
+
+    if (!fullWidth) {
+      return button;
+    }
+
+    return SizedBox(
+      width: double.infinity,
+      child: button,
+    );
+  }
+
+  Widget _buildButtonContent() {
+    if (isLoading) {
+      return const SizedBox(
+        height: 20,
+        width: 20,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+        ),
+      );
+    }
+
+    if (icon != null) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon),
+          const SizedBox(width: 8),
+          Text(text),
+        ],
+      );
+    }
+
+    return Text(text);
+  }
+}
+
+
+
+--- Content of empty_state.dart in folder widgets ---
+// lib/widgets/empty_state.dart
+import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
+
+class EmptyState extends StatelessWidget {
+  final String title;
+  final String message;
+  final String? lottieAsset;
+  final IconData? icon;
+  final VoidCallback? onActionPressed;
+  final String? actionText;
+
+  const EmptyState({
+    Key? key,
+    required this.title,
+    required this.message,
+    this.lottieAsset,
+    this.icon,
+    this.onActionPressed,
+    this.actionText,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (lottieAsset != null)
+              Lottie.asset(
+                lottieAsset!,
+                width: 200,
+                height: 200,
+              )
+            else if (icon != null)
+              Icon(
+                icon,
+                size: 80,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            const SizedBox(height: 24),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.headlineSmall,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: Theme.of(context).textTheme.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
+            if (onActionPressed != null && actionText != null) ...[
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: onActionPressed,
+                icon: const Icon(Icons.add),
+                label: Text(actionText!),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+
+--- Content of challenge_card.dart in folder widgets ---
+// lib/widgets/challenge_card.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'animated_progress_bar.dart';
+
+class ChallengeCard extends StatelessWidget {
+  final String title;
+  final String description;
+  final double progress;
+  final int daysLeft;
+  final String reward;
+  final VoidCallback? onTap;
+
+  const ChallengeCard({
+    Key? key,
+    required this.title,
+    required this.description,
+    required this.progress,
+    required this.daysLeft,
+    required this.reward,
+    this.onTap,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            gradient: LinearGradient(
+              colors: [
+                theme.colorScheme.primary,
+                theme.colorScheme.secondary,
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    title,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '$daysLeft days left',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                description,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: Colors.white.withOpacity(0.9),
+                ),
+              ),
+              const SizedBox(height: 16),
+              AnimatedProgressBar(
+                progress: progress,
+                backgroundColor: Colors.white.withOpacity(0.2),
+                foregroundColor: Colors.white,
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '${(progress * 100).toInt()}% Complete',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: Colors.white.withOpacity(0.9),
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.star,
+                        color: Colors.amber,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Reward: $reward',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    ).animate()
+      .fadeIn()
+      .scale(delay: const Duration(milliseconds: 200));
+  }
+}
+
+
+
+--- Content of custom_text_field.dart in folder widgets ---
+// lib/widgets/custom_text_field.dart
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+class CustomTextField extends StatelessWidget {
+  final String label;
+  final String? hint;
+  final TextEditingController? controller;
+  final String? Function(String?)? validator;
+  final TextInputType keyboardType;
+  final bool obscureText;
+  final Widget? prefix;
+  final Widget? suffix;
+  final int? maxLines;
+  final int? maxLength;
+  final List<TextInputFormatter>? inputFormatters;
+  final void Function(String)? onChanged;
+  final VoidCallback? onTap;
+  final bool readOnly;
+
+  const CustomTextField({
+    Key? key,
+    required this.label,
+    this.hint,
+    this.controller,
+    this.validator,
+    this.keyboardType = TextInputType.text,
+    this.obscureText = false,
+    this.prefix,
+    this.suffix,
+    this.maxLines = 1,
+    this.maxLength,
+    this.inputFormatters,
+    this.onChanged,
+    this.onTap,
+    this.readOnly = false,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: controller,
+          validator: validator,
+          keyboardType: keyboardType,
+          obscureText: obscureText,
+          maxLines: maxLines,
+          maxLength: maxLength,
+          inputFormatters: inputFormatters,
+          onChanged: onChanged,
+          onTap: onTap,
+          readOnly: readOnly,
+          decoration: InputDecoration(
+            hintText: hint,
+            prefixIcon: prefix,
+            suffixIcon: suffix,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: Theme.of(context).colorScheme.outline,
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: Theme.of(context).colorScheme.outline,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: Theme.of(context).colorScheme.primary,
+                width: 2,
+              ),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: Theme.of(context).colorScheme.error,
+              ),
+            ),
+            filled: true,
+            fillColor: Theme.of(context).colorScheme.surface,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+
+
+--- Content of leaderboard_card.dart in folder widgets ---
+//lib/widgets/leaderboard_card.dart
+
+import 'package:flutter/material.dart';
+import '../models/user.dart';
+
+class LeaderboardCard extends StatelessWidget {
+  final List<User> topUsers;
+
+  const LeaderboardCard({Key? key, required this.topUsers}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            for (int i = 0; i < topUsers.length; i++)
+              _buildUserRow(context, topUsers[i], i + 1),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUserRow(BuildContext context, User user, int rank) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        children: [
+          Text(
+            '$rank.',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(width: 16),
+          CircleAvatar(
+            backgroundImage: AssetImage(user.avatar),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Text(
+              user.name,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+          Text(
+            '${user.points} pts',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+
+--- Content of confirmation_dialog.dart in folder widgets ---
+// lib/widgets/confirmation_dialog.dart
+import 'package:flutter/material.dart';
+
+class ConfirmationDialog extends StatelessWidget {
+  final String title;
+  final String message;
+  final String confirmText;
+  final String cancelText;
+  final VoidCallback? onConfirm;
+  final VoidCallback? onCancel;
+  final Color? confirmColor;
+
+  const ConfirmationDialog({
+    Key? key,
+    required this.title,
+    required this.message,
+    this.confirmText = 'Confirm',
+    this.cancelText = 'Cancel',
+    this.onConfirm,
+    this.onCancel,
+    this.confirmColor,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      title: Text(title),
+      content: Text(message),
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.of(context).pop();
+            onCancel?.call();
+          },
+          child: Text(cancelText),
+        ),
+        FilledButton(
+          onPressed: () {
+            Navigator.of(context).pop();
+            onConfirm?.call();
+          },
+          style: FilledButton.styleFrom(
+            backgroundColor: confirmColor ?? Theme.of(context).colorScheme.primary,
+          ),
+          child: Text(confirmText),
+        ),
+      ],
+    );
+  }
+}
+
+
+
