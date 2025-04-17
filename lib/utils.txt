@@ -1,0 +1,545 @@
+--- Content of supabase_config.dart ---
+// lib/utils/supabase_config.dart
+const String supabaseUrl = 'https://vqojpbcuegjkytllrjbu.supabase.co';
+const String supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZxb2pwYmN1ZWdqa3l0bGxyamJ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc0MzI3MzIsImV4cCI6MjA1MzAwODczMn0.liLrx8NbHk7flD9WRwrcoeaJZ_Q5oGPEGSmC8X24T2s';
+
+--- Content of validators.dart ---
+// lib/utils/validators.dart
+class Validators {
+  static String? validateEmail(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Email is required';
+    }
+    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    if (!emailRegex.hasMatch(value)) {
+      return 'Enter a valid email address';
+    }
+    return null;
+  }
+
+  static String? validatePassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Password is required';
+    }
+    if (value.length < 8) {
+      return 'Password must be at least 8 characters';
+    }
+    if (!value.contains(RegExp(r'[A-Z]'))) {
+      return 'Password must contain at least one uppercase letter';
+    }
+    if (!value.contains(RegExp(r'[0-9]'))) {
+      return 'Password must contain at least one number';
+    }
+    return null;
+  }
+
+  static String? validateName(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Name is required';
+    }
+    if (value.length < 2) {
+      return 'Name must be at least 2 characters';
+    }
+    return null;
+  }
+}
+
+
+
+--- Content of image_picker_helper.dart ---
+// lib/utils/image_picker_helper.dart
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'dart:async'; // Add this import for Completer
+import 'app_logger.dart';
+
+class ImagePickerHelper {
+  static final ImagePicker _picker = ImagePicker();
+
+  /// Pick an image from camera or gallery
+  static Future<File?> pickImage({
+    required ImageSource source,
+    double? maxWidth,
+    double? maxHeight,
+    int? imageQuality,
+  }) async {
+    try {
+      final XFile? pickedFile = await _picker.pickImage(
+        source: source,
+        maxWidth: maxWidth,
+        maxHeight: maxHeight,
+        imageQuality: imageQuality ?? 85,
+      );
+
+      if (pickedFile == null) {
+        AppLogger.info('No image selected');
+        return null;
+      }
+
+      return File(pickedFile.path);
+    } catch (e) {
+      AppLogger.error('Error picking image', error: e);
+      return null;
+    }
+  }
+
+  /// Pick multiple images from gallery
+  static Future<List<File>> pickMultipleImages({
+    double? maxWidth,
+    double? maxHeight,
+    int? imageQuality,
+  }) async {
+    try {
+      final List<XFile> pickedFiles = await _picker.pickMultiImage(
+        maxWidth: maxWidth,
+        maxHeight: maxHeight,
+        imageQuality: imageQuality ?? 85,
+      );
+
+      return pickedFiles.map((xFile) => File(xFile.path)).toList();
+    } catch (e) {
+      AppLogger.error('Error picking multiple images', error: e);
+      return [];
+    }
+  }
+
+  /// Pick a video from camera or gallery
+  static Future<File?> pickVideo({
+    required ImageSource source,
+    Duration? maxDuration,
+  }) async {
+    try {
+      final XFile? pickedFile = await _picker.pickVideo(
+        source: source,
+        maxDuration: maxDuration,
+      );
+
+      if (pickedFile == null) {
+        AppLogger.info('No video selected');
+        return null;
+      }
+
+      return File(pickedFile.path);
+    } catch (e) {
+      AppLogger.error('Error picking video', error: e);
+      return null;
+    }
+  }
+
+  /// Get image dimensions
+  static Future<Size?> getImageDimensions(File imageFile) async {
+    try {
+      final Image image = Image.file(imageFile);
+      final Completer<Size> completer = Completer<Size>();
+
+      image.image.resolve(const ImageConfiguration()).addListener(
+        ImageStreamListener(
+          (ImageInfo info, bool _) {
+            completer.complete(
+              Size(
+                info.image.width.toDouble(),
+                info.image.height.toDouble(),
+              ),
+            );
+          },
+        ),
+      );
+
+      return await completer.future;
+    } catch (e) {
+      AppLogger.error('Error getting image dimensions', error: e);
+      return null;
+    }
+  }
+
+  /// Check if file is an image
+  static bool isImageFile(File file) {
+    final String path = file.path.toLowerCase();
+    return path.endsWith('.jpg') ||
+        path.endsWith('.jpeg') ||
+        path.endsWith('.png') ||
+        path.endsWith('.gif') ||
+        path.endsWith('.webp');
+  }
+
+  /// Check if file is a video
+  static bool isVideoFile(File file) {
+    final String path = file.path.toLowerCase();
+    return path.endsWith('.mp4') ||
+        path.endsWith('.mov') ||
+        path.endsWith('.avi') ||
+        path.endsWith('.wmv') ||
+        path.endsWith('.mkv');
+  }
+
+  /// Get file size in MB
+  static double getFileSizeInMB(File file) {
+    return file.lengthSync() / (1024 * 1024);
+  }
+
+  /// Show image picker modal
+  static Future<File?> showImagePickerModal(BuildContext context) async {
+    File? pickedFile;
+
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_camera),
+                title: const Text('Take a photo'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  pickedFile = await pickImage(source: ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Choose from gallery'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  pickedFile = await pickImage(source: ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    return pickedFile;
+  }
+}
+
+--- Content of date_formatter.dart ---
+// lib/utils/date_formatter.dart
+import 'package:intl/intl.dart';
+
+class DateFormatter {
+  static String formatRelativeTime(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inDays > 7) {
+      return DateFormat('MMM d, y').format(date);
+    } else if (difference.inDays > 0) {
+      return '${difference.inDays}d ago';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes}m ago';
+    } else {
+      return 'Just now';
+    }
+  }
+
+  static String formatDuration(Duration duration) {
+    if (duration.inDays > 0) {
+      return '${duration.inDays}d ${duration.inHours.remainder(24)}h';
+    } else if (duration.inHours > 0) {
+      return '${duration.inHours}h ${duration.inMinutes.remainder(60)}m';
+    } else {
+      return '${duration.inMinutes}m';
+    }
+  }
+}
+
+
+
+--- Content of app_logger.dart ---
+// lib/utils/app_logger.dart
+import 'package:flutter/foundation.dart';
+import 'dart:developer' as developer;
+
+class AppLogger {
+  static const String _defaultTag = 'APP';
+  static bool _enabled = true;
+
+  // Enable/disable logging
+  static void enable() => _enabled = true;
+  static void disable() => _enabled = false;
+
+  // Log levels
+  static void debug(
+    dynamic message, {
+    String? tag,
+    dynamic error,
+    StackTrace? stackTrace,
+  }) {
+    _log(
+      'DEBUG',
+      message,
+      tag: tag,
+      error: error,
+      stackTrace: stackTrace,
+      color: '\x1B[37m', // White
+    );
+  }
+
+  static void info(
+    dynamic message, {
+    String? tag,
+    dynamic error,
+    StackTrace? stackTrace,
+  }) {
+    _log(
+      'INFO',
+      message,
+      tag: tag,
+      error: error,
+      stackTrace: stackTrace,
+      color: '\x1B[34m', // Blue
+    );
+  }
+
+  static void warning(
+    dynamic message, {
+    String? tag,
+    dynamic error,
+    StackTrace? stackTrace,
+  }) {
+    _log(
+      'WARNING',
+      message,
+      tag: tag,
+      error: error,
+      stackTrace: stackTrace,
+      color: '\x1B[33m', // Yellow
+    );
+  }
+
+  static void error(
+    dynamic message, {
+    String? tag,
+    dynamic error,
+    StackTrace? stackTrace,
+  }) {
+    _log(
+      'ERROR',
+      message,
+      tag: tag,
+      error: error,
+      stackTrace: stackTrace,
+      color: '\x1B[31m', // Red
+    );
+  }
+
+  static void success(
+    dynamic message, {
+    String? tag,
+    dynamic error,
+    StackTrace? stackTrace,
+  }) {
+    _log(
+      'SUCCESS',
+      message,
+      tag: tag,
+      error: error,
+      stackTrace: stackTrace,
+      color: '\x1B[32m', // Green
+    );
+  }
+
+  // Main logging method
+  static void _log(
+    String level,
+    dynamic message, {
+    String? tag,
+    dynamic error,
+    StackTrace? stackTrace,
+    String color = '\x1B[37m', // Default: White
+  }) {
+    if (!_enabled) return;
+
+    final now = DateTime.now();
+    final timeString = '${now.hour.toString().padLeft(2, '0')}:'
+        '${now.minute.toString().padLeft(2, '0')}:'
+        '${now.second.toString().padLeft(2, '0')}.'
+        '${now.millisecond.toString().padLeft(3, '0')}';
+
+    final finalTag = tag ?? _defaultTag;
+    final reset = '\x1B[0m';
+    
+    // Build the log message
+    final buffer = StringBuffer()
+      ..write('$color[$timeString][$finalTag][$level] ')
+      ..write(message)
+      ..write(reset);
+
+    if (error != null) {
+      buffer
+        ..write('\n$color┌── Error: ')
+        ..write(error)
+        ..write(reset);
+    }
+
+    if (stackTrace != null) {
+      buffer
+        ..write('\n$color├── Stack trace:\n')
+        ..write(stackTrace)
+        ..write(reset);
+    }
+
+    // Use debugPrint in debug mode, developer.log in release mode
+    if (kDebugMode) {
+      debugPrint(buffer.toString());
+    } else {
+      developer.log(
+        buffer.toString(),
+        time: now,
+        name: finalTag,
+        level: _getLevelNumber(level),
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
+  // Helper method to get numeric log level
+  static int _getLevelNumber(String level) {
+    switch (level) {
+      case 'DEBUG':
+        return 500;
+      case 'INFO':
+        return 800;
+      case 'WARNING':
+        return 900;
+      case 'ERROR':
+        return 1000;
+      case 'SUCCESS':
+        return 800;
+      default:
+        return 800;
+    }
+  }
+
+  // Performance logging
+  static void logPerformance(
+    String operation,
+    Duration duration, {
+    String? tag,
+    Map<String, dynamic>? additionalInfo,
+  }) {
+    final buffer = StringBuffer()
+      ..write('Performance: $operation')
+      ..write(' (${duration.inMilliseconds}ms)');
+
+    if (additionalInfo != null) {
+      buffer.write('\nAdditional Info: $additionalInfo');
+    }
+
+    info(buffer.toString(), tag: tag ?? 'PERFORMANCE');
+  }
+
+  // Network logging
+  static void logNetwork(
+    String method,
+    String url, {
+    Map<String, dynamic>? headers,
+    dynamic body,
+    dynamic response,
+    Duration? duration,
+    String? tag,
+  }) {
+    final buffer = StringBuffer()
+      ..write('Network Request: $method $url');
+
+    if (headers != null) {
+      buffer.write('\nHeaders: $headers');
+    }
+
+    if (body != null) {
+      buffer.write('\nBody: $body');
+    }
+
+    if (response != null) {
+      buffer.write('\nResponse: $response');
+    }
+
+    if (duration != null) {
+      buffer.write('\nDuration: ${duration.inMilliseconds}ms');
+    }
+
+    info(buffer.toString(), tag: tag ?? 'NETWORK');
+  }
+
+  // State logging
+  static void logState(
+    String stateName,
+    dynamic oldState,
+    dynamic newState, {
+    String? tag,
+  }) {
+    final buffer = StringBuffer()
+      ..write('State Change: $stateName')
+      ..write('\nOld State: $oldState')
+      ..write('\nNew State: $newState');
+
+    debug(buffer.toString(), tag: tag ?? 'STATE');
+  }
+}
+
+// Example usage:
+/*
+void main() {
+  // Enable logging (enabled by default)
+  AppLogger.enable();
+
+  // Basic logging
+  AppLogger.debug('Debug message');
+  AppLogger.info('Info message');
+  AppLogger.warning('Warning message');
+  AppLogger.error('Error message');
+  AppLogger.success('Success message');
+
+  // Logging with tags
+  AppLogger.info('User logged in', tag: 'AUTH');
+
+  // Logging errors with stack traces
+  try {
+    throw Exception('Something went wrong');
+  } catch (e, stackTrace) {
+    AppLogger.error(
+      'Failed to process request',
+      tag: 'API',
+      error: e,
+      stackTrace: stackTrace,
+    );
+  }
+
+  // Performance logging
+  final stopwatch = Stopwatch()..start();
+  // ... perform operation
+  stopwatch.stop();
+  AppLogger.logPerformance(
+    'Load user data',
+    stopwatch.elapsed,
+    additionalInfo: {'userId': '123'},
+  );
+
+  // Network logging
+  AppLogger.logNetwork(
+    'GET',
+    'https://api.example.com/users',
+    headers: {'Authorization': 'Bearer token'},
+    response: {'status': 'success'},
+    duration: Duration(milliseconds: 200),
+  );
+
+  // State logging
+  AppLogger.logState(
+    'UserState',
+    {'isLoggedIn': false},
+    {'isLoggedIn': true},
+  );
+}
+*/
+
